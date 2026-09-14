@@ -1,0 +1,2 @@
+ALTER TABLE "legal_entities" ADD COLUMN "default_order_type" text;--> statement-breakpoint
+ALTER TABLE "legal_entities" ADD CONSTRAINT "legal_entity_default_order_type_check" CHECK ("legal_entities"."default_order_type" IN ('boutique','traiteur'));

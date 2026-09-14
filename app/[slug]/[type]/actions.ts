@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { cancellationPolicies, orderItems, orders, payments, products } from "@/lib/db/schema";
-import { getDefaultLegalEntity, getEstablishmentBySlug, getPaymentAccountForEntity } from "@/lib/db/queries";
+import { getEstablishmentBySlug, getPaymentAccountForEntity, getSellingEntity } from "@/lib/db/queries";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
 import type { CartLine, OrderType } from "@/lib/types";
@@ -116,11 +116,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
   const establishment = await getEstablishmentBySlug(input.slug);
   if (!establishment) return { ok: false, error: "Établissement introuvable." };
 
-  const legalEntity = await getDefaultLegalEntity(establishment.id);
+  const legalEntity = await getSellingEntity(establishment.id, input.orderType);
   if (!legalEntity) return { ok: false, error: "Aucune entité de vente configurée pour cet établissement." };
 
   const paymentAccount = await getPaymentAccountForEntity(legalEntity.id);
-  if (!paymentAccount) return { ok: false, error: "Aucun compte de paiement configuré pour cet établissement." };
+  if (!paymentAccount) return { ok: false, error: "Aucun compte de paiement configuré pour cette entité." };
 
   const productIds = input.items.map((line) => line.productId);
   const dbProducts = await db.select().from(products).where(inArray(products.id, productIds));

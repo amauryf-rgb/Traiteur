@@ -47,6 +47,9 @@ CREATE TABLE legal_entities (
     uid_number          TEXT,                             -- numéro IDE suisse (ex. CHE-123.456.789)
     vat_number          TEXT,
     is_default          BOOLEAN NOT NULL DEFAULT true,     -- entité utilisée par défaut pour les ventes
+    -- Quelle entité encaisse par défaut pour quel univers de vente (cas
+    -- multi-entité) ; NULL si cette entité gère les deux (cas simple).
+    default_order_type TEXT CHECK (default_order_type IN ('boutique', 'traiteur')),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

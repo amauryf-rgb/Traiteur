@@ -47,8 +47,13 @@ export const legalEntities = pgTable("legal_entities", {
   uidNumber: text("uid_number"),
   vatNumber: text("vat_number"),
   isDefault: boolean("is_default").notNull().default(true),
+  // Quelle entité encaisse par défaut pour quel univers de vente (boutique /
+  // traiteur) — NULL si cette entité gère les deux (cas mono-entité).
+  defaultOrderType: text("default_order_type"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  check("legal_entity_default_order_type_check", sql`${t.defaultOrderType} IN ('boutique','traiteur')`),
+]);
 
 export const paymentAccounts = pgTable("payment_accounts", {
   id: uuid("id").primaryKey().defaultRandom(),

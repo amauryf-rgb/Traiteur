@@ -39,7 +39,7 @@ function allDaySlots(): string[] {
   return slots;
 }
 
-function addDaysISO(dateISO: string, days: number): string {
+export function addDaysISO(dateISO: string, days: number): string {
   const [y, m, d] = dateISO.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d + days));
   return date.toISOString().slice(0, 10);
@@ -56,9 +56,24 @@ export function formatDateLabel(dateISO: string): string {
   }).format(date);
 }
 
+export function getTodayISO(): string {
+  return zurichParts(new Date()).dateISO;
+}
+
+// Vente au comptoir : retrait immédiat, l'heure de la commande fait office
+// de créneau (arrondie à la minute la plus proche pour rester lisible).
+export function getCurrentTimeISO(): string {
+  const { minutesSinceMidnight } = zurichParts(new Date());
+  const h = Math.floor(minutesSinceMidnight / 60)
+    .toString()
+    .padStart(2, "0");
+  const m = (minutesSinceMidnight % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 // Boutique : retrait le jour même uniquement, dans les créneaux restants.
 export function getBoutiqueDate(): string {
-  return zurichParts(new Date()).dateISO;
+  return getTodayISO();
 }
 
 export function getBoutiqueTimes(): string[] {

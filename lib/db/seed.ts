@@ -9,6 +9,7 @@ import {
   productAllergens,
   productCapacityRules,
   products,
+  staffMembers,
 } from "./schema";
 
 async function seed() {
@@ -23,24 +24,57 @@ async function seed() {
     })
     .returning();
 
-  const [legalEntity] = await db
+  // Deux sociétés distinctes (section 6 de la synthèse) : Michele possède le
+  // Traiteur SA, Richard possède la Boutique Sàrl. Chacune a son propre
+  // compte de paiement — jamais la plateforme ne détient les fonds.
+  const [traiteurEntity, boutiqueEntity] = await db
     .insert(legalEntities)
-    .values({
-      establishmentId: establishment.id,
-      name: "LabTraiteur Da Michele SA",
-      roleLabel: "Traiteur",
-      isDefault: true,
-    })
+    .values([
+      {
+        establishmentId: establishment.id,
+        name: "LabTraiteur Da Michele SA",
+        roleLabel: "Traiteur",
+        isDefault: true,
+        defaultOrderType: "traiteur",
+      },
+      {
+        establishmentId: establishment.id,
+        name: "LabTraiteur Boutique Sàrl",
+        roleLabel: "Boutique",
+        isDefault: false,
+        defaultOrderType: "boutique",
+      },
+    ])
     .returning();
 
-  // Compte de paiement non encore connecté à un vrai PSP (pilote pré-intégration) —
-  // présent pour que le parcours de commande simulé puisse s'exécuter de bout en bout.
-  await db.insert(paymentAccounts).values({
-    legalEntityId: legalEntity.id,
-    pspProvider: "stripe",
-    externalAccountId: "pending",
-    status: "pending",
-  });
+  // Comptes de paiement non encore connectés à un vrai PSP (pilote pré-intégration) —
+  // présents pour que le parcours de commande simulé puisse s'exécuter de bout en bout.
+  await db.insert(paymentAccounts).values([
+    { legalEntityId: traiteurEntity.id, pspProvider: "stripe", externalAccountId: "pending", status: "pending" },
+    { legalEntityId: boutiqueEntity.id, pspProvider: "stripe", externalAccountId: "pending", status: "pending" },
+  ]);
+
+  // Accès allégé côté interface pro (écran 10) : un code suffit, pas de
+  // compte complet à créer par membre d'équipe. D'autres membres se gèrent
+  // ensuite depuis l'écran Équipe (/pro/equipe), pas en dur ici.
+  await db.insert(staffMembers).values([
+    {
+      establishmentId: establishment.id,
+      legalEntityId: traiteurEntity.id,
+      name: "Michele",
+      initials: "MI",
+      role: "owner",
+      accessCode: "1234",
+    },
+    {
+      establishmentId: establishment.id,
+      legalEntityId: boutiqueEntity.id,
+      name: "Richard",
+      initials: "RI",
+      role: "owner",
+      accessCode: "5678",
+    },
+  ]);
 
   await db.insert(cancellationPolicies).values([
     { establishmentId: establishment.id, orderType: "boutique", refundableDaysBefore: 0, nonRefundableAfterHours: 2 },
@@ -138,6 +172,7 @@ async function seed() {
   console.log(`Établissement créé : ${establishment.name} (${establishment.slug})`);
   console.log(`  ${involtini.name} : traiteur uniquement`);
   console.log(`  ${bruschetta.name} : boutique uniquement`);
+  console.log("  Accès pro : code 1234 (Michele, propriétaire Traiteur SA) / 5678 (Richard, propriétaire Boutique Sàrl)");
   process.exit(0);
 }
 
