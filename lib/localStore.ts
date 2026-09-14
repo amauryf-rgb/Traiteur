@@ -20,9 +20,16 @@ function subscribe(callback: () => void) {
   };
 }
 
+// Repli en mémoire quand localStorage est bloqué (ex. Safari en navigation
+// privée : setItem lève systématiquement). Sans ce repli, writeJSON échouait
+// silencieusement et l'UI ne reflétait jamais la nouvelle valeur — le panier
+// semblait ne réagir à aucun clic.
+const memoryStore = new Map<string, unknown>();
 const cache = new Map<string, { raw: string | null; value: unknown }>();
 
 export function readJSON<T>(key: string, fallback: T): T {
+  if (memoryStore.has(key)) return memoryStore.get(key) as T;
+
   let raw: string | null;
   try {
     raw = window.localStorage.getItem(key);
@@ -46,16 +53,18 @@ export function readJSON<T>(key: string, fallback: T): T {
 }
 
 export function writeJSON(key: string, value: unknown) {
+  memoryStore.set(key, value);
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // stockage indisponible (navigation privée, quota) — les listeners sont
-    // tout de même notifiés pour que l'UI reflète la valeur en mémoire
+    // stockage indisponible (navigation privée, quota) — memoryStore fait
+    // office de source de vérité pour le reste de la session
   }
   notify();
 }
 
 export function removeKeys(keys: string[]) {
+  for (const key of keys) memoryStore.delete(key);
   try {
     for (const key of keys) window.localStorage.removeItem(key);
   } catch {
