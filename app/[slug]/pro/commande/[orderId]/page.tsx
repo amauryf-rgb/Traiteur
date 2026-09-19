@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getEstablishmentBySlug, getOrderWithItems } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { OrderEditClient } from "./OrderEditClient";
 
 export default async function OrderEditPage({ params }: { params: Promise<{ slug: string; orderId: string }> }) {
@@ -9,11 +9,12 @@ export default async function OrderEditPage({ params }: { params: Promise<{ slug
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
-  if (session.role === "employee") redirect(`/${slug}/pro`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  if (staffTenant.session.role === "employee") redirect(`/${slug}/pro`);
+  const { context } = staffTenant;
 
-  const result = await getOrderWithItems(orderId);
+  const result = await runAsTenant(context, (tx) => getOrderWithItems(tx, orderId));
   if (!result || result.order.establishmentId !== establishment.id) notFound();
 
   return (

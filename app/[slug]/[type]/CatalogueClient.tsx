@@ -6,7 +6,9 @@ import { BrandBanner } from "@/components/headers";
 import { saveCheckoutState, useCart } from "@/lib/cart";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
+import { Button } from "@/components/ui/Button";
 import { reserveSlot } from "./actions";
+import { TraiteurCalendar } from "./TraiteurCalendar";
 import type { CatalogueProduct } from "@/lib/db/queries";
 import type { OrderType } from "@/lib/types";
 
@@ -19,6 +21,7 @@ export function CatalogueClient({
   products,
   dates,
   times,
+  closedWeekdays,
 }: {
   slug: string;
   orderType: OrderType;
@@ -26,12 +29,14 @@ export function CatalogueClient({
   products: CatalogueProduct[];
   dates: string[];
   times: string[];
+  closedWeekdays: number[];
 }) {
   const router = useRouter();
   const cart = useCart(slug, orderType);
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [selectedTime, setSelectedTime] = useState(times[0] ?? "");
   const [activeCategory, setActiveCategory] = useState("Tout");
+  const [dateView, setDateView] = useState<"liste" | "calendrier">("liste");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -96,40 +101,84 @@ export function CatalogueClient({
     <main className="max-w-md mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white pb-20">
       <BrandBanner establishment={establishment} />
 
-      <div className="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
-        <label className="px-4 py-3 text-left">
-          <span className="block text-xs text-stone-400">Retrait</span>
-          {orderType === "boutique" ? (
-            <span className="text-sm">Aujourd&apos;hui</span>
-          ) : (
+      {orderType === "traiteur" && (
+        <div className="flex justify-end gap-3 px-6 pt-3 text-xs border-b border-stone-200 pb-2">
+          <button
+            onClick={() => setDateView("liste")}
+            style={dateView === "liste" ? { color: accentColor, fontWeight: 500 } : { color: "#a8a29e" }}
+          >
+            Liste
+          </button>
+          <button
+            onClick={() => setDateView("calendrier")}
+            style={dateView === "calendrier" ? { color: accentColor, fontWeight: 500 } : { color: "#a8a29e" }}
+          >
+            Calendrier
+          </button>
+        </div>
+      )}
+
+      {orderType === "traiteur" && dateView === "calendrier" ? (
+        <>
+          <TraiteurCalendar
+            slug={slug}
+            productIds={cart.items.map((line) => line.productId)}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            accentColor={accentColor}
+            closedWeekdays={closedWeekdays}
+          />
+          <label className="block px-6 py-3 border-b border-stone-200 text-left">
+            <span className="block text-xs text-stone-400">Heure</span>
             <select
               className="text-sm bg-transparent outline-none w-full"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
             >
-              {dates.map((date) => (
-                <option key={date} value={date}>
-                  {formatDateLabel(date)}
+              {times.map((time) => (
+                <option key={time} value={time}>
+                  {time}
                 </option>
               ))}
             </select>
-          )}
-        </label>
-        <label className="px-4 py-3 text-left">
-          <span className="block text-xs text-stone-400">Heure</span>
-          <select
-            className="text-sm bg-transparent outline-none w-full"
-            value={selectedTime}
-            onChange={(e) => setSelectedTime(e.target.value)}
-          >
-            {times.map((time) => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+          </label>
+        </>
+      ) : (
+        <div className="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
+          <label className="px-4 py-3 text-left">
+            <span className="block text-xs text-stone-400">Retrait</span>
+            {orderType === "boutique" ? (
+              <span className="text-sm">Aujourd&apos;hui</span>
+            ) : (
+              <select
+                className="text-sm bg-transparent outline-none w-full"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              >
+                {dates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+          <label className="px-4 py-3 text-left">
+            <span className="block text-xs text-stone-400">Heure</span>
+            <select
+              className="text-sm bg-transparent outline-none w-full"
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+            >
+              {times.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="flex gap-4 px-6 py-3 border-b border-stone-200 text-sm overflow-x-auto">
         {categories.map((category) => (
@@ -206,14 +255,9 @@ export function CatalogueClient({
             </p>
             <p className="text-sm font-medium">{formatCHF(cart.totalAmount)}</p>
           </div>
-          <button
-            onClick={handleContinue}
-            disabled={cart.totalItems === 0 || isPending}
-            className="px-5 py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-40"
-            style={{ backgroundColor: accentColor }}
-          >
+          <Button onClick={handleContinue} disabled={cart.totalItems === 0 || isPending} accentColor={accentColor}>
             {isPending ? "Réservation…" : "Voir le panier"}
-          </button>
+          </Button>
         </div>
       </div>
     </main>

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEstablishmentBySlug } from "@/lib/db/queries";
+import { getClientTenantContext } from "@/lib/tenant";
 import { IdentityHeader, ScreenCard } from "@/components/headers";
+import { logout } from "./compte/actions";
 
 const UNIVERSES = [
   {
@@ -21,10 +23,44 @@ export default async function EstablishmentEntryPage({ params }: { params: Promi
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
+  // Contrairement au tunnel de commande, ce compte n'est jamais requis ici :
+  // uniquement affiché s'il existe déjà une session valide pour CET
+  // établissement précis (getClientTenantContext vérifie la correspondance,
+  // pas juste la présence d'un cookie).
+  const clientTenant = await getClientTenantContext(slug);
+
+  // Le header bascule sur fond sombre quand un logo est configuré (voir
+  // IdentityHeader) — les contrôles superposés dans le coin doivent suivre,
+  // sinon un texte stone-400 devient illisible sur fond sombre.
+  const cornerTextClass = establishment.logoUrl ? "text-white/70 hover:text-white" : "text-stone-400 hover:text-stone-600";
+
   return (
     <ScreenCard>
-      <IdentityHeader establishment={establishment} line="Que souhaitez-vous faire ?" />
-      <div className="px-6 pb-6 flex flex-col gap-4 border-t border-stone-200 pt-6">
+      <div className="relative">
+        <div className={`absolute top-4 right-5 text-xs ${cornerTextClass}`}>
+          {clientTenant ? (
+            <div className="flex items-center gap-2">
+              <span>{clientTenant.session.name}</span>
+              <form action={logout.bind(null, slug)}>
+                <button type="submit" className="underline">
+                  Se déconnecter
+                </button>
+              </form>
+            </div>
+          ) : (
+            <Link href={`/${slug}/compte/login`} className="flex items-center gap-1">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              Se connecter
+            </Link>
+          )}
+        </div>
+        <IdentityHeader establishment={establishment} line="Que souhaitez-vous faire ?" />
+      </div>
+
+      <div className="px-6 pb-2 flex flex-col gap-4 border-t border-stone-200 pt-6">
         {UNIVERSES.map((universe) => (
           <Link
             key={universe.type}
@@ -39,6 +75,7 @@ export default async function EstablishmentEntryPage({ params }: { params: Promi
           </Link>
         ))}
       </div>
+      <p className="px-6 pb-6 text-center text-xs text-stone-400">Pas besoin de compte pour commander</p>
     </ScreenCard>
   );
 }

@@ -12,13 +12,46 @@ import {
   uniqueIndex,
   index,
   check,
+  pgPolicy,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 
 // =====================================================================
 // SCHÉMA DRIZZLE — traduction directe de schema.sql
 // Voir schema.sql pour les commentaires détaillés sur chaque décision.
 // =====================================================================
+
+// Isolation multi-tenant (section 11 de schema.sql) : un compte plateforme
+// (app.is_platform_admin = 'true') voit tout, un établissement ne voit que
+// ses propres lignes. Répétée à l'identique sur chaque table portant un
+// establishment_id direct — voir lib/tenant.ts pour comment ces variables
+// de session sont posées (SET LOCAL, jamais SET simple, jamais une variable
+// globale côté application).
+//
+// Comparaison en TEXTE (colonne castée vers text), jamais l'inverse : caster
+// current_setting(...) vers ::uuid peut lever une erreur même sous ce OR,
+// car current_setting est STABLE et Postgres peut évaluer ce cast
+// indépendamment du court-circuit ligne par ligne selon le plan choisi —
+// reproduit et confirmé empiriquement sur la vraie table clients (2 lignes),
+// pas sur un SELECT scalaire isolé. Une colonne uuid vers ::text ne peut
+// jamais échouer, donc ce sens est sûr dans tous les cas.
+function tenantIsolationPolicy(name: string, establishmentIdColumn: AnyPgColumn) {
+  return pgPolicy(name, {
+    using: sql`current_setting('app.is_platform_admin', true) = 'true' OR ${establishmentIdColumn}::text = current_setting('app.current_establishment_id', true)`,
+  });
+}
+
+// Pour les tables sans establishment_id direct (order_items, payments,
+// production_lot_items, product_allergens, inter_entity_invoice_lines,
+// product_capacity_rules, capacity_reservations) : RLS ne traverse pas les
+// jointures tout seul, donc chacune a besoin de sa propre policy vérifiant
+// l'appartenance via sa table parente.
+function tenantIsolationPolicyViaExists(name: string, existsClause: SQL) {
+  return pgPolicy(name, {
+    using: sql`current_setting('app.is_platform_admin', true) = 'true' OR EXISTS (${existsClause})`,
+  });
+}
 
 // ---------------------------------------------------------------------
 // 1. Établissements et entités juridiques
@@ -34,6 +67,12 @@ export const establishments = pgTable("establishments", {
   accentColor: text("accent_color"),
   customDomain: text("custom_domain"),
   onboardingStatus: text("onboarding_status").notNull().default("draft"),
+  // Fermeture hebdomadaire récurrente : jours de semaine fermés, 0=dimanche
+  // .. 6=samedi (convention JS Date#getDay()). Volontairement sur cette
+  // table sans RLS : c'est une information publique par nature (le client
+  // doit savoir quels jours sont fermés avant même qu'un tenant courant
+  // soit connu), au même titre que name/tagline/accentColor ci-dessus.
+  closedWeekdays: integer("closed_weekdays").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("onboarding_status_check", sql`${t.onboardingStatus} IN ('draft','payment_pending','active','suspended')`),
@@ -53,7 +92,8 @@ export const legalEntities = pgTable("legal_entities", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("legal_entity_default_order_type_check", sql`${t.defaultOrderType} IN ('boutique','traiteur')`),
-]);
+  tenantIsolationPolicy("legal_entities_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const paymentAccounts = pgTable("payment_accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -84,7 +124,35 @@ export const staffMembers = pgTable("staff_members", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("staff_role_check", sql`${t.role} IN ('owner','manager','employee')`),
-]);
+  tenantIsolationPolicy("staff_members_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
+// Comptes propriétaires de la plateforme (toi) — voient tous les
+// établissements, contrairement à staff_members qui est toujours rattaché
+// à un seul establishment. Pas de RLS ici : c'est justement la table qui
+// détermine qui a le droit de tout voir.
+export const platformAdmins = pgTable("platform_admins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Comptes clients — cloisonnés PAR établissement (option retenue) : la même
+// personne qui commande chez deux traiteurs différents de la plateforme a
+// deux lignes distinctes ici, sans lien entre elles.
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  passwordHash: text("password_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("clients_establishment_email_unique").on(t.establishmentId, t.email),
+  tenantIsolationPolicy("clients_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 3. Catalogue
@@ -95,7 +163,9 @@ export const categories = pgTable("categories", {
   establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
-});
+}, (t) => [
+  tenantIsolationPolicy("categories_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -111,20 +181,28 @@ export const products = pgTable("products", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  tenantIsolationPolicy("products_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const allergens = pgTable("allergens", {
   id: uuid("id").primaryKey().defaultRandom(),
   establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
   label: text("label").notNull(),
-});
+}, (t) => [
+  tenantIsolationPolicy("allergens_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const productAllergens = pgTable("product_allergens", {
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   allergenId: uuid("allergen_id").notNull().references(() => allergens.id, { onDelete: "cascade" }),
 }, (t) => [
   index("product_allergens_pk").on(t.productId, t.allergenId),
-]);
+  tenantIsolationPolicyViaExists(
+    "product_allergens_tenant_isolation",
+    sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 export const productCapacityRules = pgTable("product_capacity_rules", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -135,7 +213,11 @@ export const productCapacityRules = pgTable("product_capacity_rules", {
 }, (t) => [
   uniqueIndex("product_capacity_rules_unique").on(t.productId, t.scope),
   check("capacity_scope_check", sql`${t.scope} IN ('per_day','per_slot')`),
-]);
+  tenantIsolationPolicyViaExists(
+    "product_capacity_rules_tenant_isolation",
+    sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 4. Créneaux et réservation atomique de capacité
@@ -154,7 +236,11 @@ export const capacityReservations = pgTable("capacity_reservations", {
 }, (t) => [
   index("idx_capacity_reservations_active").on(t.productId, t.reservationDate, t.timeSlot),
   check("capacity_reservation_status_check", sql`${t.status} IN ('held','confirmed','released')`),
-]);
+  tenantIsolationPolicyViaExists(
+    "capacity_reservations_tenant_isolation",
+    sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 5. Commandes
@@ -183,7 +269,8 @@ export const orders = pgTable("orders", {
   check("order_type_check", sql`${t.orderType} IN ('boutique','traiteur')`),
   check("order_status_check", sql`${t.status} IN ('pending_payment','confirmed','in_progress','completed','cancelled')`),
   check("order_payment_status_check", sql`${t.paymentStatus} IN ('unpaid','deposit_paid','paid','refunded_partial','refunded_full')`),
-]);
+  tenantIsolationPolicy("orders_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const orderItems = pgTable("order_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -194,7 +281,11 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull(),
 }, (t) => [
   check("order_item_quantity_check", sql`${t.quantity} > 0`),
-]);
+  tenantIsolationPolicyViaExists(
+    "order_items_tenant_isolation",
+    sql`SELECT 1 FROM ${orders} WHERE ${orders.id} = ${t.orderId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 6. Paiements (abstraction multi-PSP)
@@ -214,7 +305,11 @@ export const payments = pgTable("payments", {
 }, (t) => [
   check("payment_type_check", sql`${t.type} IN ('deposit','full','balance','refund')`),
   check("payment_status_check", sql`${t.status} IN ('pending','succeeded','failed')`),
-]);
+  tenantIsolationPolicyViaExists(
+    "payments_tenant_isolation",
+    sql`SELECT 1 FROM ${orders} WHERE ${orders.id} = ${t.orderId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 7. Production et répartition des tâches
@@ -232,7 +327,8 @@ export const productionLots = pgTable("production_lots", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("production_lot_status_check", sql`${t.status} IN ('pending','in_progress','done')`),
-]);
+  tenantIsolationPolicy("production_lots_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const productionLotItems = pgTable("production_lot_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -241,7 +337,11 @@ export const productionLotItems = pgTable("production_lot_items", {
   quantityCovered: integer("quantity_covered").notNull(),
 }, (t) => [
   check("lot_item_quantity_check", sql`${t.quantityCovered} > 0`),
-]);
+  tenantIsolationPolicyViaExists(
+    "production_lot_items_tenant_isolation",
+    sql`SELECT 1 FROM ${productionLots} WHERE ${productionLots.id} = ${t.lotId} AND ${productionLots.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 8. Facturation inter-entités
@@ -261,7 +361,8 @@ export const interEntityInvoices = pgTable("inter_entity_invoices", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("inter_entity_invoice_status_check", sql`${t.status} IN ('draft','generated')`),
-]);
+  tenantIsolationPolicy("inter_entity_invoices_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 export const interEntityInvoiceLines = pgTable("inter_entity_invoice_lines", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -270,7 +371,12 @@ export const interEntityInvoiceLines = pgTable("inter_entity_invoice_lines", {
   description: text("description").notNull(),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   included: boolean("included").notNull().default(true),
-});
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "inter_entity_invoice_lines_tenant_isolation",
+    sql`SELECT 1 FROM ${interEntityInvoices} WHERE ${interEntityInvoices.id} = ${t.invoiceId} AND ${interEntityInvoices.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 9. Politique d'annulation
@@ -286,7 +392,8 @@ export const cancellationPolicies = pgTable("cancellation_policies", {
 }, (t) => [
   uniqueIndex("cancellation_policies_unique").on(t.establishmentId, t.orderType),
   check("cancellation_order_type_check", sql`${t.orderType} IN ('boutique','traiteur')`),
-]);
+  tenantIsolationPolicy("cancellation_policies_tenant_isolation", t.establishmentId),
+]).enableRLS();
 
 // ---------------------------------------------------------------------
 // 10. Notifications
@@ -305,4 +412,24 @@ export const notifications = pgTable("notifications", {
 }, (t) => [
   check("notification_recipient_type_check", sql`${t.recipientType} IN ('client','staff_member')`),
   check("notification_channel_check", sql`${t.channel} IN ('email','sms','push')`),
-]);
+  tenantIsolationPolicy("notifications_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
+// ---------------------------------------------------------------------
+// 11. Fermetures ponctuelles (congés, jours fériés)
+// ---------------------------------------------------------------------
+// Distinctes de establishments.closed_weekdays (récurrence hebdomadaire) :
+// ici, des dates précises, une par ligne. Contrairement à establishments,
+// cette table porte des lignes établissement-scopées à protéger par RLS
+// normalement, patron identique à cancellation_policies.
+
+export const establishmentClosures = pgTable("establishment_closures", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("establishment_closures_unique").on(t.establishmentId, t.date),
+  tenantIsolationPolicy("establishment_closures_tenant_isolation", t.establishmentId),
+]).enableRLS();

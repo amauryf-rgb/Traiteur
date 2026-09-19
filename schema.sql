@@ -33,6 +33,12 @@ CREATE TABLE establishments (
     -- Statut du parcours d'inscription (écran 17)
     onboarding_status   TEXT NOT NULL DEFAULT 'draft'
                         CHECK (onboarding_status IN ('draft', 'payment_pending', 'active', 'suspended')),
+    -- Fermeture hebdomadaire récurrente : jours de semaine fermés, 0=dimanche
+    -- .. 6=samedi (convention JS Date#getDay()). Volontairement sur cette
+    -- table sans RLS : information publique par nature (le client doit
+    -- savoir quels jours sont fermés avant même qu'un tenant courant soit
+    -- connu), au même titre que name/tagline/accent_color ci-dessus.
+    closed_weekdays     INTEGER[] NOT NULL DEFAULT '{}',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -83,6 +89,30 @@ CREATE TABLE staff_members (
     -- Accès allégé employé (écran 10) : pas de mot de passe complet nécessaire
     access_code         TEXT UNIQUE,                      -- lien ou code d'accès simplifié
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Comptes propriétaires de la plateforme (toi) — voient tous les
+-- établissements, contrairement à staff_members qui est toujours
+-- rattaché à un seul establishment.
+CREATE TABLE platform_admins (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                TEXT NOT NULL,
+    email               TEXT NOT NULL UNIQUE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Comptes clients — cloisonnés PAR établissement (option A retenue) :
+-- la même personne qui commande chez deux traiteurs différents de la
+-- plateforme a deux lignes distinctes ici, sans lien entre elles.
+CREATE TABLE clients (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    name                TEXT NOT NULL,
+    email               TEXT,
+    phone               TEXT,
+    password_hash       TEXT,                              -- NULL si connexion par lien/OTP uniquement
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (establishment_id, email)
 );
 
 
@@ -331,3 +361,262 @@ CREATE TABLE notifications (
     sent_at                   TIMESTAMPTZ,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------
+-- 11. FERMETURES PONCTUELLES (congés, jours fériés)
+-- ---------------------------------------------------------------------
+-- Distinctes de establishments.closed_weekdays (récurrence hebdomadaire) :
+-- des dates précises, une par ligne. Contrairement à establishments, cette
+-- table porte des lignes établissement-scopées à protéger par RLS
+-- normalement, patron identique à cancellation_policies.
+
+CREATE TABLE establishment_closures (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    date                DATE NOT NULL,
+    reason              TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (establishment_id, date)
+);
+
+
+-- =====================================================================
+-- 12. ISOLATION MULTI-TENANT — ROW-LEVEL SECURITY (RLS)
+-- =====================================================================
+-- Deuxième barrière, au niveau de PostgreSQL lui-même : même si une
+-- requête applicative oublie un filtre establishment_id, la base
+-- refuse de toute façon de renvoyer les lignes d'un autre établissement.
+--
+-- Fonctionnement : l'application définit deux variables de session au
+-- début de chaque requête, POSÉES DANS LA MÊME TRANSACTION que la requête
+-- métier qui suit (SET LOCAL, jamais SET simple — sinon la variable reste
+-- collée à la connexion et fuit vers la prochaine requête réutilisant la
+-- même connexion dans le pool) :
+--   SET LOCAL app.current_establishment_id = '<uuid>';   -- le tenant courant
+--   SET LOCAL app.is_platform_admin = 'true' | 'false';   -- toi = 'true'
+--
+-- Un compte plateforme (toi) voit tout. Un traiteur ne voit que ses
+-- propres lignes.
+--
+-- Trois pièges qui rendraient RLS totalement inopérant sans erreur visible :
+--   1. BYPASSRLS sur le rôle applicatif (Neon l'accorde par défaut au rôle
+--      "owner" du projet) — ignore les policies exactement comme un
+--      superuser. Le rôle qui se connecte depuis l'app ne doit JAMAIS
+--      avoir cet attribut ; à vérifier explicitement après création
+--      (SELECT rolbypassrls FROM pg_roles ...), pas en le présumant.
+--   2. Le propriétaire d'une table ignore RLS par défaut, même sans
+--      BYPASSRLS, sauf si la table a FORCE ROW LEVEL SECURITY — d'où les
+--      ALTER ... FORCE ci-dessous sur chaque table concernée.
+--   3. Les contraintes de clé étrangère (REFERENCES) sont vérifiées par
+--      des triggers internes qui s'exécutent avec des privilèges propres
+--      à Postgres et IGNORENT RLS — une valeur appartenant à un autre
+--      tenant peut donc satisfaire une FK même si la ligne référencée est
+--      invisible sous le tenant courant. RLS protège les lectures/écritures
+--      normales, pas l'intégrité référentielle. Concrètement : ne jamais
+--      faire confiance à une FK seule pour garantir qu'un product_id, un
+--      staff_member_id, etc. fourni par le client appartient bien au bon
+--      établissement — valider explicitement avec un SELECT scopé
+--      establishment_id avant tout INSERT/UPDATE qui accepte un tel ID
+--      (voir assignLot dans app/[slug]/pro/actions.ts pour un exemple réel :
+--      un production_lots.product_id forgé pointant vers le produit d'un
+--      autre établissement a été créé avec succès avant l'ajout de cette
+--      validation, sans qu'aucune erreur Postgres ne se déclenche).
+
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY clients_tenant_isolation ON clients
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+-- Même principe appliqué à chaque table portant un establishment_id direct.
+-- (establishments elle-même n'a volontairement pas cette policy : la
+-- résolution d'un établissement par son slug, pour les pages publiques,
+-- doit rester possible avant même qu'un tenant courant soit connu.)
+
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY orders_tenant_isolation ON orders
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE legal_entities ENABLE ROW LEVEL SECURITY;
+CREATE POLICY legal_entities_tenant_isolation ON legal_entities
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY staff_members_tenant_isolation ON staff_members
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY categories_tenant_isolation ON categories
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY products_tenant_isolation ON products
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE allergens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY allergens_tenant_isolation ON allergens
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE production_lots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY production_lots_tenant_isolation ON production_lots
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE inter_entity_invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY inter_entity_invoices_tenant_isolation ON inter_entity_invoices
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE cancellation_policies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cancellation_policies_tenant_isolation ON cancellation_policies
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY notifications_tenant_isolation ON notifications
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE establishment_closures ENABLE ROW LEVEL SECURITY;
+CREATE POLICY establishment_closures_tenant_isolation ON establishment_closures
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+-- Sans ceci, le rôle propriétaire des tables (celui qui a exécuté cette
+-- migration) continuerait d'ignorer les policies ci-dessus par défaut.
+ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+ALTER TABLE legal_entities FORCE ROW LEVEL SECURITY;
+ALTER TABLE staff_members FORCE ROW LEVEL SECURITY;
+ALTER TABLE categories FORCE ROW LEVEL SECURITY;
+ALTER TABLE products FORCE ROW LEVEL SECURITY;
+ALTER TABLE allergens FORCE ROW LEVEL SECURITY;
+ALTER TABLE production_lots FORCE ROW LEVEL SECURITY;
+ALTER TABLE inter_entity_invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE cancellation_policies FORCE ROW LEVEL SECURITY;
+ALTER TABLE establishment_closures FORCE ROW LEVEL SECURITY;
+ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+
+-- Tables sans establishment_id direct : RLS ne traverse pas les jointures
+-- tout seul, donc chacune a sa propre policy vérifiant l'appartenance via
+-- sa table parente (EXISTS). Sans ça, une requête directe sur order_items
+-- par exemple pourrait renvoyer les lignes d'un autre établissement même
+-- avec RLS actif sur orders.
+
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY order_items_tenant_isolation ON order_items
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM orders
+            WHERE orders.id = order_items.order_id
+            AND orders.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY payments_tenant_isolation ON payments
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM orders
+            WHERE orders.id = payments.order_id
+            AND orders.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE capacity_reservations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY capacity_reservations_tenant_isolation ON capacity_reservations
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM products
+            WHERE products.id = capacity_reservations.product_id
+            AND products.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE product_capacity_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY product_capacity_rules_tenant_isolation ON product_capacity_rules
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM products
+            WHERE products.id = product_capacity_rules.product_id
+            AND products.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE product_allergens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY product_allergens_tenant_isolation ON product_allergens
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM products
+            WHERE products.id = product_allergens.product_id
+            AND products.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE production_lot_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY production_lot_items_tenant_isolation ON production_lot_items
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM production_lots
+            WHERE production_lots.id = production_lot_items.lot_id
+            AND production_lots.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE inter_entity_invoice_lines ENABLE ROW LEVEL SECURITY;
+CREATE POLICY inter_entity_invoice_lines_tenant_isolation ON inter_entity_invoice_lines
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR EXISTS (
+            SELECT 1 FROM inter_entity_invoices
+            WHERE inter_entity_invoices.id = inter_entity_invoice_lines.invoice_id
+            AND inter_entity_invoices.establishment_id::text = current_setting('app.current_establishment_id', true)
+        )
+    );
+
+ALTER TABLE order_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE payments FORCE ROW LEVEL SECURITY;
+ALTER TABLE capacity_reservations FORCE ROW LEVEL SECURITY;
+ALTER TABLE product_capacity_rules FORCE ROW LEVEL SECURITY;
+ALTER TABLE product_allergens FORCE ROW LEVEL SECURITY;
+ALTER TABLE production_lot_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE inter_entity_invoice_lines FORCE ROW LEVEL SECURITY;
+
+-- Table volontairement laissée hors RLS : platform_admins (elle détermine
+-- justement qui a le droit de tout voir).

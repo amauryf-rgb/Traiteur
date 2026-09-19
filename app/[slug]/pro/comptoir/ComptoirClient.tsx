@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { formatCHF } from "@/lib/format";
+import { Button, buttonClassName, buttonStyle } from "@/components/ui/Button";
 import { checkoutComptoir } from "./actions";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
@@ -92,10 +93,7 @@ export function ComptoirClient({
             ← Planning
           </Link>
         </div>
-        <button
-          onClick={nouveauClient}
-          className="text-sm rounded-full border border-stone-200 px-4 py-2 hover:border-stone-300"
-        >
+        <button onClick={nouveauClient} className={`${buttonClassName("secondary")} text-sm`} style={buttonStyle("secondary", accentColor)}>
           Nouveau client
         </button>
       </div>
@@ -179,14 +177,9 @@ export function ComptoirClient({
               <span>Total</span>
               <span>{formatCHF(total)}</span>
             </div>
-            <button
-              onClick={encaisser}
-              disabled={isPending || items.length === 0}
-              className="w-full rounded-lg text-white text-sm font-medium py-3 disabled:opacity-50"
-              style={{ backgroundColor: accentColor }}
-            >
+            <Button onClick={encaisser} disabled={isPending || items.length === 0} accentColor={accentColor} className="w-full">
               {isPending ? "Encaissement…" : "Encaisser"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

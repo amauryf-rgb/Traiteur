@@ -8,8 +8,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Structure commune : titres en serif (Fraunces), corps/UI en sans-serif
+     (Inter) — voir app/layout.tsx. Remapper ces clés de thème fait que les
+     classes utilitaires font-serif/font-sans déjà utilisées partout dans le
+     site récupèrent la bonne police sans modifier un seul composant. */
+  --font-serif: var(--font-voice);
+  --font-sans: var(--font-sans);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +26,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }

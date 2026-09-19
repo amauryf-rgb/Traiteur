@@ -7,6 +7,7 @@ import { useCheckoutState } from "@/lib/cart";
 import { useHydrated } from "@/lib/localStore";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
+import { Button } from "@/components/ui/Button";
 import { createOrder } from "../actions";
 import type { OrderType } from "@/lib/types";
 
@@ -164,14 +165,9 @@ export function RecapitulatifClient({
       {error && <p className="mx-6 mb-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="px-6 pb-6">
-        <button
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="w-full rounded-lg text-white text-sm font-medium py-3 disabled:opacity-50"
-          style={{ backgroundColor: accentColor }}
-        >
+        <Button onClick={handleSubmit} disabled={isPending} accentColor={accentColor} className="w-full">
           {isPending ? "Traitement…" : `Payer ${orderType === "traiteur" && paymentMode === "deposit" ? "l'acompte" : ""} · ${formatCHF(amountDue)}`}
-        </button>
+        </Button>
         <p className="text-center text-xs text-stone-400 mt-3">
           Simulation — aucun paiement réel n&apos;est traité à ce stade.
         </p>

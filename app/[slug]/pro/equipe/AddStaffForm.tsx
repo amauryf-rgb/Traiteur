@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/Button";
 import { addStaffMember, type StaffFormState } from "./actions";
 
 const initialState: StaffFormState = {};
@@ -40,14 +41,9 @@ export function AddStaffForm({
         </select>
       </div>
       {state.error && <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg text-white text-sm font-medium py-2.5 disabled:opacity-50"
-        style={{ backgroundColor: accentColor }}
-      >
+      <Button type="submit" disabled={isPending} accentColor={accentColor}>
         {isPending ? "Ajout…" : "Ajouter"}
-      </button>
+      </Button>
     </form>
   );
 }

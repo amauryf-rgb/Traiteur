@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { orderItems, orders, payments, products } from "@/lib/db/schema";
-import { getEstablishmentBySlug, getPaymentAccountForEntity, getSellingEntity } from "@/lib/db/queries";
-import { getStaffSession } from "@/lib/auth";
+import { getPaymentAccountForEntity, getSellingEntity } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
 import { getCurrentTimeISO, getTodayISO } from "@/lib/slots";
@@ -19,37 +18,44 @@ class CapacityError extends Error {
   }
 }
 
+class UnavailableProductsError extends Error {}
+class NoSellingEntityError extends Error {}
+class NoPaymentAccountError extends Error {}
+
 export async function checkoutComptoir(slug: string, items: ComptoirItem[], clientName: string): Promise<CheckoutResult> {
-  const session = await getStaffSession();
-  const establishment = await getEstablishmentBySlug(slug);
-  if (!establishment || !session || session.establishmentId !== establishment.id) {
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant) {
     return { ok: false, error: "Session expirée, merci de vous reconnecter." };
   }
   if (items.length === 0) return { ok: false, error: "Aucun article sélectionné." };
 
-  const productIds = items.map((i) => i.productId);
-  const dbProducts = await db
-    .select()
-    .from(products)
-    .where(and(eq(products.establishmentId, establishment.id), inArray(products.id, productIds)));
-  if (dbProducts.length !== productIds.length) return { ok: false, error: "Un produit n'est plus disponible." };
-
-  const legalEntity = await getSellingEntity(establishment.id, "boutique");
-  if (!legalEntity) return { ok: false, error: "Aucune entité de vente configurée pour la boutique." };
-
-  const paymentAccount = await getPaymentAccountForEntity(legalEntity.id);
-  if (!paymentAccount) return { ok: false, error: "Aucun compte de paiement configuré pour cette entité." };
+  const { session, context } = staffTenant;
+  const establishmentId = session.establishmentId;
 
   const date = getTodayISO();
   const time = getCurrentTimeISO();
-  const total = items.reduce((sum, item) => {
-    const product = dbProducts.find((p) => p.id === item.productId)!;
-    return sum + Number(product.priceAmount) * item.quantity;
-  }, 0);
 
   let orderId: string;
   try {
-    orderId = await db.transaction(async (tx) => {
+    orderId = await runAsTenant(context, async (tx) => {
+      const productIds = items.map((i) => i.productId);
+      const dbProducts = await tx
+        .select()
+        .from(products)
+        .where(and(eq(products.establishmentId, establishmentId), inArray(products.id, productIds)));
+      if (dbProducts.length !== productIds.length) throw new UnavailableProductsError();
+
+      const legalEntity = await getSellingEntity(tx, establishmentId, "boutique");
+      if (!legalEntity) throw new NoSellingEntityError();
+
+      const paymentAccount = await getPaymentAccountForEntity(tx, legalEntity.id);
+      if (!paymentAccount) throw new NoPaymentAccountError();
+
+      const total = items.reduce((sum, item) => {
+        const product = dbProducts.find((p) => p.id === item.productId)!;
+        return sum + Number(product.priceAmount) * item.quantity;
+      }, 0);
+
       const reservationIds: string[] = [];
       for (const item of items) {
         const product = dbProducts.find((p) => p.id === item.productId)!;
@@ -61,7 +67,7 @@ export async function checkoutComptoir(slug: string, items: ComptoirItem[], clie
       const [order] = await tx
         .insert(orders)
         .values({
-          establishmentId: establishment.id,
+          establishmentId,
           orderType: "boutique",
           sellingEntityId: legalEntity.id,
           clientName: clientName.trim() || "Client comptoir",
@@ -106,6 +112,15 @@ export async function checkoutComptoir(slug: string, items: ComptoirItem[], clie
   } catch (err) {
     if (err instanceof CapacityError) {
       return { ok: false, error: `Capacité atteinte pour "${err.productName}".` };
+    }
+    if (err instanceof NoSellingEntityError) {
+      return { ok: false, error: "Aucune entité de vente configurée pour la boutique." };
+    }
+    if (err instanceof NoPaymentAccountError) {
+      return { ok: false, error: "Aucun compte de paiement configuré pour cette entité." };
+    }
+    if (err instanceof UnavailableProductsError) {
+      return { ok: false, error: "Un produit n'est plus disponible." };
     }
     return { ok: false, error: "La commande a expiré, réessayez." };
   }

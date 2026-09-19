@@ -2,12 +2,49 @@
 
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { cancellationPolicies, orderItems, orders, payments, products } from "@/lib/db/schema";
-import { getEstablishmentBySlug, getPaymentAccountForEntity, getSellingEntity } from "@/lib/db/queries";
+import {
+  getCapacityStatusForMonth,
+  getClosuresInRange,
+  getPaymentAccountForEntity,
+  getSellingEntity,
+  type DayCapacityStatus,
+} from "@/lib/db/queries";
+import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
+import { getClosedDatesInRange, getMonthBounds } from "@/lib/slots";
 import type { CartLine, OrderType } from "@/lib/types";
+
+// Statut de capacité par jour pour le calendrier client du tunnel traiteur —
+// productIds vient du panier (état client, localStorage), donc fourni par
+// l'appelant. Sûr malgré tout : establishmentId ne vient jamais de ce
+// paramètre mais de getPublicTenantContext(slug), et RLS filtre de toute
+// façon silencieusement tout productId qui n'appartiendrait pas à ce tenant
+// (aucune ligne renvoyée), sans qu'aucune écriture ne soit en jeu ici.
+export async function getMonthCapacityStatus(slug: string, productIds: string[], monthISO: string): Promise<DayCapacityStatus[]> {
+  const tenant = await getPublicTenantContext(slug);
+  if (!tenant) return [];
+  const { context } = tenant;
+
+  if (productIds.length === 0) return [];
+
+  const { start, end } = getMonthBounds(monthISO);
+  return runAsTenant(context, (tx) => getCapacityStatusForMonth(tx, productIds, start, end));
+}
+
+// Jours fermés (ponctuels) sur le mois affiché — closed_weekdays (récurrence)
+// est déjà connu côté client (statique, passé en prop depuis la page), donc
+// pas besoin de le refaire transiter ici.
+export async function getMonthClosureDates(slug: string, monthISO: string): Promise<string[]> {
+  const tenant = await getPublicTenantContext(slug);
+  if (!tenant) return [];
+  const { establishment, context } = tenant;
+
+  const { start, end } = getMonthBounds(monthISO);
+  const closures = await runAsTenant(context, (tx) => getClosuresInRange(tx, establishment.id, start, end));
+  return closures.map((c) => c.date);
+}
 
 export type CartItemInput = { productId: string; quantity: number };
 
@@ -30,34 +67,49 @@ class CapacityError extends Error {
   }
 }
 
+class UnavailableProductsError extends Error {}
+class ClosedDateError extends Error {}
+
 export async function reserveSlot(input: ReserveSlotInput): Promise<ReserveSlotResult> {
   if (input.items.length === 0) {
     return { ok: false, error: "Le panier est vide." };
   }
 
-  const establishment = await getEstablishmentBySlug(input.slug);
-  if (!establishment) return { ok: false, error: "Établissement introuvable." };
+  const tenant = await getPublicTenantContext(input.slug);
+  if (!tenant) return { ok: false, error: "Établissement introuvable." };
+  const { establishment, context } = tenant;
 
   const productIds = input.items.map((i) => i.productId);
   const availabilityColumn = input.orderType === "boutique" ? products.availableBoutique : products.availableTraiteur;
-  const dbProducts = await db
-    .select()
-    .from(products)
-    .where(
-      and(
-        eq(products.establishmentId, establishment.id),
-        eq(products.isActive, true),
-        eq(availabilityColumn, true),
-        inArray(products.id, productIds)
-      )
-    );
-
-  if (dbProducts.length !== productIds.length) {
-    return { ok: false, error: "Un ou plusieurs produits ne sont plus disponibles." };
-  }
 
   try {
-    const { reservationIds, expiresAt } = await db.transaction(async (tx) => {
+    const { reservationIds, expiresAt } = await runAsTenant(context, async (tx) => {
+      // Un jour fermé doit être rejeté ici, pas seulement grisé côté client :
+      // input.date est un argument direct d'action serveur non liée par
+      // .bind(), donc modifiable dans le corps de la requête — exactement le
+      // même traitement que la capacité, qui n'est jamais fiée à l'UI seule.
+      const closureRows = await getClosuresInRange(tx, establishment.id, input.date, input.date);
+      const closedDates = getClosedDatesInRange(establishment.closedWeekdays, closureRows.map((c) => c.date), input.date, input.date);
+      if (closedDates.has(input.date)) {
+        throw new ClosedDateError();
+      }
+
+      const dbProducts = await tx
+        .select()
+        .from(products)
+        .where(
+          and(
+            eq(products.establishmentId, establishment.id),
+            eq(products.isActive, true),
+            eq(availabilityColumn, true),
+            inArray(products.id, productIds)
+          )
+        );
+
+      if (dbProducts.length !== productIds.length) {
+        throw new UnavailableProductsError();
+      }
+
       const ids: string[] = [];
       let expiresAt = new Date();
       for (const item of input.items) {
@@ -86,6 +138,12 @@ export async function reserveSlot(input: ReserveSlotInput): Promise<ReserveSlotR
         error: `Capacité atteinte pour "${err.productName}" ${when}. Réduisez la quantité ou choisissez un autre créneau.`,
       };
     }
+    if (err instanceof UnavailableProductsError) {
+      return { ok: false, error: "Un ou plusieurs produits ne sont plus disponibles." };
+    }
+    if (err instanceof ClosedDateError) {
+      return { ok: false, error: "Ce jour est fermé. Merci de choisir une autre date." };
+    }
     throw err;
   }
 }
@@ -108,44 +166,49 @@ const DEPOSIT_RATE = 0.3;
 
 class SlotExpiredError extends Error {}
 
+class NoSellingEntityError extends Error {}
+class NoPaymentAccountError extends Error {}
+
 export async function createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
   const clientName = input.clientName.trim();
   if (!clientName) return { ok: false, error: "Merci d'indiquer votre nom." };
   if (input.items.length === 0) return { ok: false, error: "Le panier est vide." };
 
-  const establishment = await getEstablishmentBySlug(input.slug);
-  if (!establishment) return { ok: false, error: "Établissement introuvable." };
-
-  const legalEntity = await getSellingEntity(establishment.id, input.orderType);
-  if (!legalEntity) return { ok: false, error: "Aucune entité de vente configurée pour cet établissement." };
-
-  const paymentAccount = await getPaymentAccountForEntity(legalEntity.id);
-  if (!paymentAccount) return { ok: false, error: "Aucun compte de paiement configuré pour cette entité." };
-
-  const productIds = input.items.map((line) => line.productId);
-  const dbProducts = await db.select().from(products).where(inArray(products.id, productIds));
-  if (dbProducts.length !== productIds.length) {
-    return { ok: false, error: "Un ou plusieurs produits ne sont plus disponibles." };
-  }
-
-  const totalAmount = input.items.reduce((sum, line) => {
-    const product = dbProducts.find((p) => p.id === line.productId)!;
-    return sum + Number(product.priceAmount) * line.quantity;
-  }, 0);
+  const tenant = await getPublicTenantContext(input.slug);
+  if (!tenant) return { ok: false, error: "Établissement introuvable." };
+  const { establishment, context } = tenant;
 
   const orderType = input.orderType;
-  const paymentMode = orderType === "boutique" ? "full" : input.paymentMode;
-  const depositAmount = paymentMode === "deposit" ? Math.round(totalAmount * DEPOSIT_RATE * 100) / 100 : null;
-  const paidAmount = depositAmount ?? totalAmount;
-
-  const [policy] = await db
-    .select()
-    .from(cancellationPolicies)
-    .where(and(eq(cancellationPolicies.establishmentId, establishment.id), eq(cancellationPolicies.orderType, orderType)));
 
   let orderId: string;
   try {
-    orderId = await db.transaction(async (tx) => {
+    orderId = await runAsTenant(context, async (tx) => {
+      const legalEntity = await getSellingEntity(tx, establishment.id, orderType);
+      if (!legalEntity) throw new NoSellingEntityError();
+
+      const paymentAccount = await getPaymentAccountForEntity(tx, legalEntity.id);
+      if (!paymentAccount) throw new NoPaymentAccountError();
+
+      const productIds = input.items.map((line) => line.productId);
+      const dbProducts = await tx.select().from(products).where(inArray(products.id, productIds));
+      if (dbProducts.length !== productIds.length) {
+        throw new UnavailableProductsError();
+      }
+
+      const totalAmount = input.items.reduce((sum, line) => {
+        const product = dbProducts.find((p) => p.id === line.productId)!;
+        return sum + Number(product.priceAmount) * line.quantity;
+      }, 0);
+
+      const paymentMode = orderType === "boutique" ? "full" : input.paymentMode;
+      const depositAmount = paymentMode === "deposit" ? Math.round(totalAmount * DEPOSIT_RATE * 100) / 100 : null;
+      const paidAmount = depositAmount ?? totalAmount;
+
+      const [policy] = await tx
+        .select()
+        .from(cancellationPolicies)
+        .where(and(eq(cancellationPolicies.establishmentId, establishment.id), eq(cancellationPolicies.orderType, orderType)));
+
       const [order] = await tx
         .insert(orders)
         .values({
@@ -205,6 +268,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
   } catch (err) {
     if (err instanceof SlotExpiredError) {
       return { ok: false, error: "Votre créneau a expiré. Merci de refaire votre sélection." };
+    }
+    if (err instanceof NoSellingEntityError) {
+      return { ok: false, error: "Aucune entité de vente configurée pour cet établissement." };
+    }
+    if (err instanceof NoPaymentAccountError) {
+      return { ok: false, error: "Aucun compte de paiement configuré pour cette entité." };
+    }
+    if (err instanceof UnavailableProductsError) {
+      return { ok: false, error: "Un ou plusieurs produits ne sont plus disponibles." };
     }
     throw err;
   }

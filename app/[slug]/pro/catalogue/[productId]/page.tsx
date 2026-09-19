@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getAllergensForEstablishment, getEstablishmentBySlug, getManagedProductById } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { PageHeader, ScreenCard } from "@/components/headers";
 import { ProductForm } from "../ProductForm";
 
@@ -10,14 +10,17 @@ export default async function EditProductPage({ params }: { params: Promise<{ sl
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
-  if (session.role === "employee") redirect(`/${slug}/pro`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  if (staffTenant.session.role === "employee") redirect(`/${slug}/pro`);
+  const { context } = staffTenant;
 
-  const product = await getManagedProductById(establishment.id, productId);
+  const { product, allergenOptions } = await runAsTenant(context, async (tx) => {
+    const product = await getManagedProductById(tx, establishment.id, productId);
+    const allergenOptions = await getAllergensForEstablishment(tx, establishment.id);
+    return { product, allergenOptions };
+  });
   if (!product) notFound();
-
-  const allergenOptions = await getAllergensForEstablishment(establishment.id);
 
   return (
     <ScreenCard>

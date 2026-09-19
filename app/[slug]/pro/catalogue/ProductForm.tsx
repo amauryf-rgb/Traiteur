@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
+import { Button, buttonClassName } from "@/components/ui/Button";
 import { saveProduct, type ProductFormState } from "./actions";
 import type { ManagedProduct } from "@/lib/db/queries";
 
@@ -142,18 +143,10 @@ export function ProductForm({
       {state.error && <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>}
 
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-lg text-white text-sm font-medium py-2.5 px-5 disabled:opacity-50"
-          style={{ backgroundColor: accentColor }}
-        >
+        <Button type="submit" disabled={isPending} accentColor={accentColor}>
           {isPending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        <Link
-          href={`/${slug}/pro/catalogue`}
-          className="rounded-lg border border-stone-200 text-sm font-medium py-2.5 px-5 hover:border-stone-300"
-        >
+        </Button>
+        <Link href={`/${slug}/pro/catalogue`} className={`${buttonClassName("secondary")} border-stone-200 text-stone-600 hover:border-stone-300`}>
           Annuler
         </Link>
       </div>

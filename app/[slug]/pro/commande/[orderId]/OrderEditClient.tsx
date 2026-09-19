@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { PageHeader, ScreenCard } from "@/components/headers";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
+import { Button } from "@/components/ui/Button";
 import { updateOrderQuantities } from "./actions";
 import type { orderItems, orders } from "@/lib/db/schema";
 
@@ -109,18 +110,13 @@ export function OrderEditClient({
       {error && <p className="mx-6 mb-4 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="px-6 pb-6">
-        <button
-          onClick={handleConfirm}
-          disabled={isPending || !hasChanges}
-          className="w-full rounded-lg text-white text-sm font-medium py-3 disabled:opacity-50"
-          style={{ backgroundColor: accentColor }}
-        >
+        <Button onClick={handleConfirm} disabled={isPending || !hasChanges} accentColor={accentColor} className="w-full">
           {isPending
             ? "Traitement…"
             : refundAmount > 0
               ? `Confirmer et rembourser ${formatCHF(refundAmount)}`
               : "Confirmer les modifications"}
-        </button>
+        </Button>
       </div>
     </ScreenCard>
   );

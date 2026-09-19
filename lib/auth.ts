@@ -1,34 +1,23 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
-// Accès allégé propriétaire/employé (voir staff_members.access_code dans le
-// schéma) : pas de mot de passe complet, juste un code vérifié contre cette
-// table. La session est un cookie signé (HMAC), sans table de sessions —
-// cohérent avec la simplicité voulue pour ce parcours.
-const COOKIE_NAME = "staff_session";
-const SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
-
-export type StaffSession = {
-  staffMemberId: string;
-  establishmentId: string;
-  name: string;
-  role: string;
-  exp: number;
-};
-
 function getSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET n'est pas configuré.");
   return secret;
 }
 
-function sign(payload: StaffSession): string {
+// Signature HMAC générique, réutilisée pour toute session cookie de l'appli
+// (staff, client) — la structure du payload est décidée par l'appelant, le
+// mécanisme de signature/vérification ne change jamais. Pas de table de
+// sessions : le cookie signé porte lui-même toute l'information nécessaire.
+function sign<T>(payload: T): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = crypto.createHmac("sha256", getSecret()).update(body).digest("base64url");
   return `${body}.${signature}`;
 }
 
-function verify(token: string): StaffSession | null {
+function verify<T>(token: string): T | null {
   const [body, signature] = token.split(".");
   if (!body || !signature) return null;
 
@@ -38,11 +27,28 @@ function verify(token: string): StaffSession | null {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
 
   try {
-    return JSON.parse(Buffer.from(body, "base64url").toString("utf-8")) as StaffSession;
+    return JSON.parse(Buffer.from(body, "base64url").toString("utf-8")) as T;
   } catch {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------
+// Session staff — accès allégé propriétaire/employé (voir
+// staff_members.access_code dans le schéma) : pas de mot de passe complet,
+// juste un code vérifié contre cette table.
+// ---------------------------------------------------------------------
+
+const STAFF_COOKIE_NAME = "staff_session";
+const STAFF_SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
+
+export type StaffSession = {
+  staffMemberId: string;
+  establishmentId: string;
+  name: string;
+  role: string;
+  exp: number;
+};
 
 export async function createStaffSession(staff: { id: string; establishmentId: string; name: string; role: string }) {
   const payload: StaffSession = {
@@ -50,29 +56,99 @@ export async function createStaffSession(staff: { id: string; establishmentId: s
     establishmentId: staff.establishmentId,
     name: staff.name,
     role: staff.role,
-    exp: Date.now() + SESSION_DURATION_MS,
+    exp: Date.now() + STAFF_SESSION_DURATION_MS,
   };
   const store = await cookies();
-  store.set(COOKIE_NAME, sign(payload), {
+  store.set(STAFF_COOKIE_NAME, sign(payload), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_DURATION_MS / 1000,
+    maxAge: STAFF_SESSION_DURATION_MS / 1000,
   });
 }
 
 export async function getStaffSession(): Promise<StaffSession | null> {
   const store = await cookies();
-  const token = store.get(COOKIE_NAME)?.value;
+  const token = store.get(STAFF_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const payload = verify(token);
+  const payload = verify<StaffSession>(token);
   if (!payload || payload.exp < Date.now()) return null;
   return payload;
 }
 
 export async function clearStaffSession() {
   const store = await cookies();
-  store.delete(COOKIE_NAME);
+  store.delete(STAFF_COOKIE_NAME);
+}
+
+// ---------------------------------------------------------------------
+// Session client — rattachée à l'établissement dans son ensemble, jamais à
+// un univers particulier (traiteur/boutique sont deux entités juridiques
+// côté facturation, pas deux bases clients distinctes). Un seul cookie,
+// posé sur path "/", valable pour les deux tunnels : changer d'univers ne
+// perd jamais la session, par construction (rien dans le payload ne
+// mentionne l'univers).
+// ---------------------------------------------------------------------
+
+const CLIENT_COOKIE_NAME = "client_session";
+const CLIENT_SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type ClientSession = {
+  clientId: string;
+  establishmentId: string;
+  name: string;
+  exp: number;
+};
+
+export async function createClientSession(client: { id: string; establishmentId: string; name: string }) {
+  const payload: ClientSession = {
+    clientId: client.id,
+    establishmentId: client.establishmentId,
+    name: client.name,
+    exp: Date.now() + CLIENT_SESSION_DURATION_MS,
+  };
+  const store = await cookies();
+  store.set(CLIENT_COOKIE_NAME, sign(payload), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: CLIENT_SESSION_DURATION_MS / 1000,
+  });
+}
+
+export async function getClientSession(): Promise<ClientSession | null> {
+  const store = await cookies();
+  const token = store.get(CLIENT_COOKIE_NAME)?.value;
+  if (!token) return null;
+
+  const payload = verify<ClientSession>(token);
+  if (!payload || payload.exp < Date.now()) return null;
+  return payload;
+}
+
+export async function clearClientSession() {
+  const store = await cookies();
+  store.delete(CLIENT_COOKIE_NAME);
+}
+
+// ---------------------------------------------------------------------
+// Mots de passe client — scrypt natif (module crypto de Node), pas de
+// dépendance ajoutée, cohérent avec le HMAC déjà utilisé ci-dessus.
+// ---------------------------------------------------------------------
+
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const hashBuffer = Buffer.from(hash, "hex");
+  const suppliedBuffer = crypto.scryptSync(password, salt, 64);
+  return hashBuffer.length === suppliedBuffer.length && crypto.timingSafeEqual(hashBuffer, suppliedBuffer);
 }

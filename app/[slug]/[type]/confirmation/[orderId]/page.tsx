@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEstablishmentBySlug, getOrderWithItems } from "@/lib/db/queries";
+import { getOrderWithItems } from "@/lib/db/queries";
+import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import { PageHeader, ScreenCard } from "@/components/headers";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
+import { buttonClassName } from "@/components/ui/Button";
 import { ClearCheckout } from "./ClearCheckout";
 import type { OrderType } from "@/lib/types";
 
@@ -24,10 +26,11 @@ export default async function ConfirmationPage({
   const { slug, type, orderId } = await params;
   if (!isOrderType(type)) notFound();
 
-  const establishment = await getEstablishmentBySlug(slug);
-  if (!establishment) notFound();
+  const tenant = await getPublicTenantContext(slug);
+  if (!tenant) notFound();
+  const { establishment, context } = tenant;
 
-  const result = await getOrderWithItems(orderId);
+  const result = await runAsTenant(context, (tx) => getOrderWithItems(tx, orderId));
   if (!result || result.order.establishmentId !== establishment.id || result.order.orderType !== type) {
     notFound();
   }
@@ -61,10 +64,7 @@ export default async function ConfirmationPage({
       </div>
 
       <div className="px-6 pb-6 pt-2">
-        <Link
-          href={`/${slug}`}
-          className="block w-full text-center rounded-lg border border-stone-200 text-sm font-medium py-3 hover:border-stone-300"
-        >
+        <Link href={`/${slug}`} className={`${buttonClassName("secondary")} w-full border-stone-200 text-stone-600 hover:border-stone-300`}>
           Retour à l&apos;accueil
         </Link>
       </div>

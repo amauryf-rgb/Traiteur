@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getCatalogueProducts, getEstablishmentBySlug } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { ComptoirClient } from "./ComptoirClient";
 
 export default async function ComptoirPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -9,10 +9,11 @@ export default async function ComptoirPage({ params }: { params: Promise<{ slug:
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  const { context } = staffTenant;
 
-  const products = await getCatalogueProducts(establishment.id, "boutique");
+  const products = await runAsTenant(context, (tx) => getCatalogueProducts(tx, establishment.id, "boutique"));
 
   return (
     <ComptoirClient

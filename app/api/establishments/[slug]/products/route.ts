@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { establishments, products, categories } from "@/lib/db/schema";
+import { products, categories } from "@/lib/db/schema";
+import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -9,27 +9,26 @@ export async function GET(
 ) {
   const { slug } = await params;
 
-  const [establishment] = await db
-    .select()
-    .from(establishments)
-    .where(eq(establishments.slug, slug));
-
-  if (!establishment) {
+  const tenant = await getPublicTenantContext(slug);
+  if (!tenant) {
     return NextResponse.json({ error: "Établissement introuvable" }, { status: 404 });
   }
+  const { establishment, context } = tenant;
 
-  const rows = await db
-    .select({
-      id: products.id,
-      name: products.name,
-      description: products.description,
-      priceAmount: products.priceAmount,
-      currency: products.currency,
-      categoryName: categories.name,
-    })
-    .from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(eq(products.establishmentId, establishment.id));
+  const rows = await runAsTenant(context, (tx) =>
+    tx
+      .select({
+        id: products.id,
+        name: products.name,
+        description: products.description,
+        priceAmount: products.priceAmount,
+        currency: products.currency,
+        categoryName: categories.name,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(eq(products.establishmentId, establishment.id))
+  );
 
   return NextResponse.json({
     establishment: {

@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getEstablishmentBySlug, getManagedProducts, getOrdersForDate } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { aggregateByProduct } from "@/lib/aggregate";
 import { getTodayISO } from "@/lib/slots";
 import { formatCHF } from "@/lib/format";
+import { buttonClassName } from "@/components/ui/Button";
 import { toggleActive } from "./actions";
 
 export default async function CataloguePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -13,13 +14,17 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
-  if (session.role === "employee") redirect(`/${slug}/pro`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  if (staffTenant.session.role === "employee") redirect(`/${slug}/pro`);
+  const { context } = staffTenant;
 
-  const products = await getManagedProducts(establishment.id);
-  const todayOrders = await getOrdersForDate(establishment.id, getTodayISO());
-  const aggregated = aggregateByProduct(todayOrders);
+  const { products, aggregated } = await runAsTenant(context, async (tx) => {
+    const products = await getManagedProducts(tx, establishment.id);
+    const todayOrders = await getOrdersForDate(tx, establishment.id, getTodayISO());
+    const aggregated = aggregateByProduct(todayOrders);
+    return { products, aggregated };
+  });
   const quantityByProduct = new Map(aggregated.map((a) => [a.productId, a.quantity]));
   const accentColor = establishment.accentColor ?? "#1a1a1a";
 
@@ -84,7 +89,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
               <form action={toggleActive.bind(null, slug, product.id, product.isActive)}>
                 <button
                   type="submit"
-                  className="text-xs rounded-full border px-2.5 py-1 whitespace-nowrap"
+                  className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs whitespace-nowrap`}
                   style={product.isActive ? { borderColor: "#d6d3d1", color: "#78716c" } : { borderColor: accentColor, color: accentColor }}
                 >
                   {product.isActive ? "Désactiver" : "Activer"}
@@ -93,7 +98,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
 
               <Link
                 href={`/${slug}/pro/catalogue/${product.id}`}
-                className="text-xs rounded-full border px-2.5 py-1 whitespace-nowrap"
+                className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs whitespace-nowrap`}
                 style={{ borderColor: accentColor, color: accentColor }}
               >
                 Modifier

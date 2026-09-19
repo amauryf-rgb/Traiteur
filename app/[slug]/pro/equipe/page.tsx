@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getEstablishmentBySlug, getLegalEntitiesForEstablishment, getStaffForEstablishment } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { AddStaffForm } from "./AddStaffForm";
 import { removeStaffMember } from "./actions";
 
-const ROLE_LABEL: Record<string, string> = { owner: "Propriétaire", manager: "Manager", employee: "Employé" };
+const ROLE_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
+  owner: { label: "Propriétaire", tone: "success" },
+  manager: { label: "Manager", tone: "info" },
+  employee: { label: "Employé", tone: "neutral" },
+};
 
 export default async function EquipePage({
   params,
@@ -20,14 +25,19 @@ export default async function EquipePage({
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
-  if (session.role !== "owner") redirect(`/${slug}/pro`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  if (staffTenant.session.role !== "owner") redirect(`/${slug}/pro`);
+  const { context } = staffTenant;
 
-  const [staff, entities] = await Promise.all([
-    getStaffForEstablishment(establishment.id),
-    getLegalEntitiesForEstablishment(establishment.id),
-  ]);
+  // Requêtes séquentielles : tx est une connexion unique retenue pour toute
+  // la transaction (SET LOCAL), pas un pool — deux requêtes concurrentes sur
+  // le même client PostgreSQL ne sont pas supportées par node-postgres.
+  const { staff, entities } = await runAsTenant(context, async (tx) => {
+    const staff = await getStaffForEstablishment(tx, establishment.id);
+    const entities = await getLegalEntitiesForEstablishment(tx, establishment.id);
+    return { staff, entities };
+  });
   const entityById = new Map(entities.map((e) => [e.id, e]));
   const accentColor = establishment.accentColor ?? "#1a1a1a";
 
@@ -50,9 +60,10 @@ export default async function EquipePage({
         {staff.map((member) => (
           <div key={member.id} className="px-6 py-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">
-                {member.name} <span className="text-stone-400 font-normal">· {ROLE_LABEL[member.role] ?? member.role}</span>
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{member.name}</p>
+                <Badge tone={ROLE_BADGE[member.role]?.tone ?? "neutral"}>{ROLE_BADGE[member.role]?.label ?? member.role}</Badge>
+              </div>
               <p className="text-xs text-stone-400 mt-0.5">
                 {entityById.get(member.legalEntityId ?? "")?.name ?? "Aucune entité"} · code {member.accessCode}
               </p>

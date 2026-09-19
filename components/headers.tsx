@@ -1,8 +1,23 @@
 import { Monogram } from "./Monogram";
 
-type Establishment = { name: string; tagline: string | null; accentColor: string | null };
+type Establishment = { name: string; tagline: string | null; accentColor: string | null; logoUrl?: string | null };
 
+// Logo — personnalisation par établissement, même principe que la couleur
+// d'accent : un établissement sans logo configuré reste utilisable, avec un
+// rendu neutre (monogramme + nom). Quand un logo existe, le header bascule
+// sur un fond sombre (la couleur d'accent, déjà pensée comme sombre dans les
+// usages actuels) pour qu'un logo lui-même à fond sombre (comme celui de
+// LabTraiteur) s'y intègre sans rectangle visible.
 export function IdentityHeader({ establishment, line }: { establishment: Establishment; line?: string }) {
+  if (establishment.logoUrl) {
+    return (
+      <div className="text-center px-6 py-8" style={{ backgroundColor: establishment.accentColor ?? "#1a1a1a" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={establishment.logoUrl} alt={establishment.name} className="h-14 mx-auto object-contain" />
+        <p className="text-sm text-white/70 mt-3">{line ?? establishment.tagline}</p>
+      </div>
+    );
+  }
   return (
     <div className="text-center px-6 py-8">
       <div className="flex justify-center mb-3">
@@ -17,10 +32,17 @@ export function IdentityHeader({ establishment, line }: { establishment: Establi
 export function BrandBanner({ establishment }: { establishment: Establishment }) {
   return (
     <div className="text-center px-6 py-6" style={{ backgroundColor: establishment.accentColor ?? "#1a1a1a" }}>
-      <div className="flex justify-center mb-3">
-        <Monogram name={establishment.name} accentColor={establishment.accentColor} invert />
-      </div>
-      <p className="text-white text-xl font-serif">{establishment.name}</p>
+      {establishment.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={establishment.logoUrl} alt={establishment.name} className="h-12 mx-auto object-contain" />
+      ) : (
+        <>
+          <div className="flex justify-center mb-3">
+            <Monogram name={establishment.name} accentColor={establishment.accentColor} invert />
+          </div>
+          <p className="text-white text-xl font-serif">{establishment.name}</p>
+        </>
+      )}
       {establishment.tagline && <p className="text-white/70 text-sm italic mt-1">{establishment.tagline}</p>}
     </div>
   );

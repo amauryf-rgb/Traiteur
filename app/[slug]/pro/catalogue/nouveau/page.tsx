@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getStaffSession } from "@/lib/auth";
 import { getAllergensForEstablishment, getEstablishmentBySlug } from "@/lib/db/queries";
+import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { PageHeader, ScreenCard } from "@/components/headers";
 import { ProductForm } from "../ProductForm";
 
@@ -10,11 +10,12 @@ export default async function NewProductPage({ params }: { params: Promise<{ slu
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
 
-  const session = await getStaffSession();
-  if (!session || session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
-  if (session.role === "employee") redirect(`/${slug}/pro`);
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
+  if (staffTenant.session.role === "employee") redirect(`/${slug}/pro`);
+  const { context } = staffTenant;
 
-  const allergenOptions = await getAllergensForEstablishment(establishment.id);
+  const allergenOptions = await runAsTenant(context, (tx) => getAllergensForEstablishment(tx, establishment.id));
 
   return (
     <ScreenCard>
