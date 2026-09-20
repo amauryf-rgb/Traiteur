@@ -12,8 +12,11 @@ export function IdentityHeader({ establishment, line }: { establishment: Establi
   if (establishment.logoUrl) {
     return (
       <div className="text-center px-6 py-8" style={{ backgroundColor: establishment.accentColor ?? "#1a1a1a" }}>
+        {/* Taille réduite sur mobile plutôt qu'un redimensionnement
+            proportionnel naïf : un logo large en format paysage ne doit pas
+            dominer un header étroit — max-w plafonne aussi sa largeur. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={establishment.logoUrl} alt={establishment.name} className="h-14 mx-auto object-contain" />
+        <img src={establishment.logoUrl} alt={establishment.name} className="h-10 sm:h-14 max-w-[60%] mx-auto object-contain" />
         <p className="text-sm text-white/70 mt-3">{line ?? establishment.tagline}</p>
       </div>
     );
@@ -34,7 +37,7 @@ export function BrandBanner({ establishment }: { establishment: Establishment })
     <div className="text-center px-6 py-6" style={{ backgroundColor: establishment.accentColor ?? "#1a1a1a" }}>
       {establishment.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={establishment.logoUrl} alt={establishment.name} className="h-12 mx-auto object-contain" />
+        <img src={establishment.logoUrl} alt={establishment.name} className="h-9 sm:h-12 max-w-[60%] mx-auto object-contain" />
       ) : (
         <>
           <div className="flex justify-center mb-3">

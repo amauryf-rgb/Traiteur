@@ -8,8 +8,11 @@ import {
 } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { formatCHF } from "@/lib/format";
+import { buttonClassName } from "@/components/ui/Button";
+import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { InvoiceGroupForm } from "./InvoiceGroupForm";
 import { ManualInvoiceForm } from "./ManualInvoiceForm";
+import { EntityBillingForm } from "./EntityBillingForm";
 
 function currentMonthRange() {
   const now = new Date();
@@ -23,10 +26,10 @@ export default async function FacturationPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ start?: string; end?: string }>;
+  searchParams: Promise<{ start?: string; end?: string; pdfError?: string }>;
 }) {
   const { slug } = await params;
-  const { start: startParam, end: endParam } = await searchParams;
+  const { start: startParam, end: endParam, pdfError } = await searchParams;
 
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
@@ -34,7 +37,7 @@ export default async function FacturationPage({
   const staffTenant = await requireStaffTenantContext();
   if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
   if (staffTenant.session.role !== "owner") redirect(`/${slug}/pro`);
-  const { context } = staffTenant;
+  const { session, context } = staffTenant;
 
   const defaults = currentMonthRange();
   const periodStart = startParam ?? defaults.start;
@@ -66,15 +69,34 @@ export default async function FacturationPage({
   const accentColor = establishment.accentColor ?? "#1a1a1a";
 
   return (
-    <main className="max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 text-white" style={{ backgroundColor: accentColor }}>
-        <p className="font-serif text-sm">Facturation inter-entités — {establishment.name}</p>
-        <Link href={`/${slug}/pro`} className="text-xs text-white/80 hover:text-white underline">
-          Planning
-        </Link>
+    <ProShell
+      slug={slug}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      staffName={session.name}
+      isOwner
+      active="facturation"
+    >
+    <ProPanel>
+      <p className="font-serif text-sm px-6 py-4 border-b border-stone-200">Facturation inter-entités — {establishment.name}</p>
+
+      {pdfError && (
+        <p className="mx-6 mt-4 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
+          Impossible de générer le PDF : les coordonnées de facturation de{" "}
+          <strong>{entityName.get(pdfError) ?? "cette entité"}</strong> sont incomplètes. Complétez-les ci-dessous
+          (adresse et IBAN sont requis).
+        </p>
+      )}
+
+      <div className="px-6 py-4 border-b border-stone-200">
+        <p className="text-xs text-stone-400 mb-3">Coordonnées de facturation par entité</p>
+        <div className="flex flex-col gap-2">
+          {entities.map((entity) => (
+            <EntityBillingForm key={entity.id} slug={slug} entity={entity} accentColor={accentColor} />
+          ))}
+        </div>
       </div>
 
-      <form className="flex items-center gap-3 px-6 py-3 border-b border-stone-200 text-xs">
+      <form className="flex items-center gap-3 px-6 py-3 border-b border-stone-200 text-xs flex-wrap">
         <span className="text-stone-400">Période</span>
         <input type="date" name="start" defaultValue={periodStart} className="border border-stone-200 rounded-md px-2 py-1" />
         <span className="text-stone-400">→</span>
@@ -113,18 +135,35 @@ export default async function FacturationPage({
 
       <div className="px-6 py-4 border-t border-stone-200">
         <p className="text-xs text-stone-400 mb-3">Factures générées</p>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col divide-y divide-stone-100">
           {invoices.map((inv) => (
-            <div key={inv.id} className="flex justify-between text-sm">
-              <span>
-                {entityName.get(inv.fromEntityId) ?? "?"} → {entityName.get(inv.toEntityId) ?? "?"} · {inv.periodStart} – {inv.periodEnd}
-              </span>
-              <span className="font-medium">{formatCHF(Number(inv.totalAmount))}</span>
+            <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 py-3 text-sm">
+              <div className="min-w-0">
+                <p>
+                  <span className="text-stone-400">{inv.invoiceNumber}</span> · {entityName.get(inv.fromEntityId) ?? "?"} →{" "}
+                  {entityName.get(inv.toEntityId) ?? "?"}
+                </p>
+                <p className="text-xs text-stone-400">{inv.periodStart} – {inv.periodEnd}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-medium">{formatCHF(Number(inv.totalAmount))}</span>
+                <Link href={`/${slug}/pro/facturation/${inv.id}`} className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs`}>
+                  Détail
+                </Link>
+                <Link
+                  href={`/${slug}/pro/facturation/${inv.id}/pdf`}
+                  className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs`}
+                  style={{ borderColor: accentColor, color: accentColor }}
+                >
+                  PDF
+                </Link>
+              </div>
             </div>
           ))}
           {invoices.length === 0 && <p className="text-sm text-stone-400">Aucune facture générée pour l&apos;instant.</p>}
         </div>
       </div>
-    </main>
+    </ProPanel>
+    </ProShell>
   );
 }

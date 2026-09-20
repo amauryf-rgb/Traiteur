@@ -48,7 +48,12 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
     return (
       <ClosedNotice
         slug={slug}
-        establishment={{ name: establishment.name, tagline: establishment.tagline, accentColor: establishment.accentColor }}
+        establishment={{
+          name: establishment.name,
+          tagline: establishment.tagline,
+          accentColor: establishment.accentColor,
+          logoUrl: establishment.logoUrl,
+        }}
         reason={todayClosure?.reason ?? null}
       />
     );
@@ -65,6 +70,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
         name: establishment.name,
         tagline: establishment.tagline,
         accentColor: establishment.accentColor,
+        logoUrl: establishment.logoUrl,
       }}
       products={products}
       dates={dates}

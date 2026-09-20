@@ -89,6 +89,17 @@ export const legalEntities = pgTable("legal_entities", {
   // Quelle entité encaisse par défaut pour quel univers de vente (boutique /
   // traiteur) — NULL si cette entité gère les deux (cas mono-entité).
   defaultOrderType: text("default_order_type"),
+  // Modèle de facturation de l'entité (écran 12.1) : rempli une fois par le
+  // professionnel, réutilisé pour chaque facture inter-entités émise par
+  // cette entité — jamais ressaisi à la volée. Tout nullable : une entité
+  // fraîchement créée n'a pas encore de modèle, voir isBillingProfileComplete.
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  addressPostalCode: text("address_postal_code"),
+  addressCity: text("address_city"),
+  addressCountry: text("address_country").default("CH"),
+  ibanNumber: text("iban_number"),
+  bankName: text("bank_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("legal_entity_default_order_type_check", sql`${t.defaultOrderType} IN ('boutique','traiteur')`),
@@ -352,6 +363,9 @@ export const interEntityInvoices = pgTable("inter_entity_invoices", {
   establishmentId: uuid("establishment_id").notNull().references(() => establishments.id),
   fromEntityId: uuid("from_entity_id").notNull().references(() => legalEntities.id),
   toEntityId: uuid("to_entity_id").notNull().references(() => legalEntities.id),
+  // Séquentiel par établissement (F-{année}-{0001}), attribué à la création
+  // et jamais modifié — voir nextInvoiceNumber dans facturation/actions.ts.
+  invoiceNumber: text("invoice_number").notNull(),
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -361,6 +375,7 @@ export const interEntityInvoices = pgTable("inter_entity_invoices", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("inter_entity_invoice_status_check", sql`${t.status} IN ('draft','generated')`),
+  uniqueIndex("inter_entity_invoices_number_unique").on(t.establishmentId, t.invoiceNumber),
   tenantIsolationPolicy("inter_entity_invoices_tenant_isolation", t.establishmentId),
 ]).enableRLS();
 

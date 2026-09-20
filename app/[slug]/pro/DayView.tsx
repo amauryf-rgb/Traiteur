@@ -91,7 +91,8 @@ export function DayView({
         </div>
       </div>
 
-      <div className="px-6 py-4 border-b border-stone-200">
+      <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x divide-stone-200">
+      <div className="px-6 py-4 border-b border-stone-200 lg:border-b-0">
         <p className="text-xs text-stone-400 mb-3">À produire {isToday ? "aujourd'hui" : "ce jour"}</p>
         {aggregated.length === 0 && <p className="text-sm text-stone-400">Aucune commande ce jour.</p>}
         <div className="flex flex-col gap-3">
@@ -180,6 +181,7 @@ export function DayView({
       </div>
 
       <div className="divide-y divide-stone-200">
+        <p className="px-6 pt-4 text-xs text-stone-400">Commandes</p>
         {activeOrders.map((order) => (
           <div key={order.id} className="px-6 py-4 flex items-start gap-4">
             <form action={togglePrepared.bind(null, slug, order.id, order.status)}>
@@ -224,6 +226,7 @@ export function DayView({
         {activeOrders.length === 0 && (
           <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucune commande pour ce jour.</p>
         )}
+      </div>
       </div>
     </>
   );

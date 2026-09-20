@@ -56,6 +56,19 @@ CREATE TABLE legal_entities (
     -- Quelle entité encaisse par défaut pour quel univers de vente (cas
     -- multi-entité) ; NULL si cette entité gère les deux (cas simple).
     default_order_type TEXT CHECK (default_order_type IN ('boutique', 'traiteur')),
+    -- Modèle de facturation (écran 12.1, ajouté avec la facturation PDF) :
+    -- rempli une fois par le professionnel, réutilisé pour chaque facture
+    -- inter-entités émise par cette entité. Tout nullable — une entité
+    -- fraîchement créée n'a pas encore de modèle ; voir
+    -- isBillingProfileComplete dans facturation/actions.ts pour le contrôle
+    -- fait avant de générer un PDF.
+    address_line1       TEXT,
+    address_line2       TEXT,
+    address_postal_code TEXT,
+    address_city        TEXT,
+    address_country     TEXT DEFAULT 'CH',
+    iban_number         TEXT,
+    bank_name           TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -308,6 +321,10 @@ CREATE TABLE inter_entity_invoices (
     establishment_id    UUID NOT NULL REFERENCES establishments(id),
     from_entity_id       UUID NOT NULL REFERENCES legal_entities(id),  -- ex. Boutique
     to_entity_id          UUID NOT NULL REFERENCES legal_entities(id), -- ex. Traiteur
+    -- Séquentiel par établissement et par année ("F-2026-0001"), attribué à
+    -- la création — voir nextInvoiceNumber() dans facturation/actions.ts.
+    -- Unique par (establishment_id, invoice_number), jamais modifié ensuite.
+    invoice_number        TEXT NOT NULL,
     period_start          DATE NOT NULL,
     period_end            DATE NOT NULL,
     total_amount           NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -315,7 +332,8 @@ CREATE TABLE inter_entity_invoices (
                         CHECK (status IN ('draft', 'generated')),
     pdf_url                TEXT,
     generated_at            TIMESTAMPTZ,
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (establishment_id, invoice_number)
 );
 
 -- Chaque ligne = une commande candidate à la facturation, avec la

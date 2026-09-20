@@ -13,8 +13,7 @@ import {
 import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/lib/tenant";
 import { aggregateByProduct } from "@/lib/aggregate";
 import { getClosedDatesInRange, getMonthBounds, getMonthGrid, getTodayISO, monthOfDate } from "@/lib/slots";
-import { initials } from "@/lib/format";
-import { logout } from "./actions";
+import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { DayView } from "./DayView";
 import { MonthView } from "./MonthView";
@@ -64,85 +63,56 @@ export default async function ProDashboardPage({
   const view = viewParam === "month" ? "month" : "day";
   const date = dateParam ?? today;
   const accentColor = establishment.accentColor ?? "#1a1a1a";
+  const isOwner = session.role === "owner";
 
   return (
-    <main className="max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 text-white" style={{ backgroundColor: accentColor }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-serif text-sm">
-            {initials(establishment.name)}
-          </div>
-          <div>
-            <p className="font-serif text-sm leading-tight">{establishment.name}</p>
-            <p className="text-xs text-white/70 leading-tight">{session.name}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href={`/${slug}/pro/comptoir`} className="text-xs text-white/80 hover:text-white underline">
-            Comptoir
+    <ProShell
+      slug={slug}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      staffName={session.name}
+      isOwner={isOwner}
+      active="planning"
+    >
+      <ProPanel>
+        <div className="flex items-center gap-3 px-6 py-2 border-b border-stone-200 text-xs">
+          <Link
+            href={`/${slug}/pro?date=${date}`}
+            className="pb-1"
+            style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+          >
+            Jour
           </Link>
-          <Link href={`/${slug}/pro/catalogue`} className="text-xs text-white/80 hover:text-white underline">
-            Catalogue
+          <Link
+            href={`/${slug}/pro?view=month&date=${date}`}
+            className="pb-1"
+            style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+          >
+            Mois
           </Link>
-          {session.role === "owner" && (
-            <>
-              <Link href={`/${slug}/pro/facturation`} className="text-xs text-white/80 hover:text-white underline">
-                Facturation
-              </Link>
-              <Link href={`/${slug}/pro/equipe`} className="text-xs text-white/80 hover:text-white underline">
-                Équipe
-              </Link>
-              <Link href={`/${slug}/pro/fermetures`} className="text-xs text-white/80 hover:text-white underline">
-                Fermetures
-              </Link>
-            </>
-          )}
-          <form action={logout.bind(null, slug)}>
-            <button type="submit" className="text-xs text-white/80 hover:text-white underline">
-              Se déconnecter
-            </button>
-          </form>
         </div>
-      </div>
 
-      <div className="flex items-center gap-3 px-6 py-2 border-b border-stone-200 text-xs">
-        <Link
-          href={`/${slug}/pro?date=${date}`}
-          className="pb-1"
-          style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
-        >
-          Jour
-        </Link>
-        <Link
-          href={`/${slug}/pro?view=month&date=${date}`}
-          className="pb-1"
-          style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
-        >
-          Mois
-        </Link>
-      </div>
-
-      {view === "month" ? (
-        <MonthViewSection
-          slug={slug}
-          establishmentId={establishment.id}
-          closedWeekdays={establishment.closedWeekdays}
-          date={date}
-          today={today}
-          context={context}
-          accentColor={accentColor}
-        />
-      ) : (
-        <DayViewSection
-          slug={slug}
-          establishmentId={establishment.id}
-          date={date}
-          today={today}
-          context={context}
-          accentColor={accentColor}
-        />
-      )}
-    </main>
+        {view === "month" ? (
+          <MonthViewSection
+            slug={slug}
+            establishmentId={establishment.id}
+            closedWeekdays={establishment.closedWeekdays}
+            date={date}
+            today={today}
+            context={context}
+            accentColor={accentColor}
+          />
+        ) : (
+          <DayViewSection
+            slug={slug}
+            establishmentId={establishment.id}
+            date={date}
+            today={today}
+            context={context}
+            accentColor={accentColor}
+          />
+        )}
+      </ProPanel>
+    </ProShell>
   );
 }
 

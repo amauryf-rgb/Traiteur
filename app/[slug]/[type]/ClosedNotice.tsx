@@ -2,7 +2,7 @@ import Link from "next/link";
 import { IdentityHeader, ScreenCard } from "@/components/headers";
 import { buttonClassName } from "@/components/ui/Button";
 
-type Establishment = { name: string; tagline: string | null; accentColor: string | null };
+type Establishment = { name: string; tagline: string | null; accentColor: string | null; logoUrl?: string | null };
 
 export function ClosedNotice({ establishment, reason, slug }: { establishment: Establishment; reason: string | null; slug: string }) {
   return (

@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getEstablishmentBySlug, getLegalEntitiesForEstablishment, getStaffForEstablishment } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { AddStaffForm } from "./AddStaffForm";
 import { removeStaffMember } from "./actions";
 
@@ -28,7 +28,7 @@ export default async function EquipePage({
   const staffTenant = await requireStaffTenantContext();
   if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
   if (staffTenant.session.role !== "owner") redirect(`/${slug}/pro`);
-  const { context } = staffTenant;
+  const { session, context } = staffTenant;
 
   // Requêtes séquentielles : tx est une connexion unique retenue pour toute
   // la transaction (SET LOCAL), pas un pool — deux requêtes concurrentes sur
@@ -42,13 +42,15 @@ export default async function EquipePage({
   const accentColor = establishment.accentColor ?? "#1a1a1a";
 
   return (
-    <main className="max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 text-white" style={{ backgroundColor: accentColor }}>
-        <p className="font-serif text-sm">Équipe — {establishment.name}</p>
-        <Link href={`/${slug}/pro`} className="text-xs text-white/80 hover:text-white underline">
-          Retour au planning
-        </Link>
-      </div>
+    <ProShell
+      slug={slug}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      staffName={session.name}
+      isOwner
+      active="equipe"
+    >
+    <ProPanel>
+      <p className="font-serif text-sm px-6 py-4 border-b border-stone-200">Équipe — {establishment.name}</p>
 
       {error === "last_owner" && (
         <p className="mx-6 mt-4 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
@@ -82,6 +84,7 @@ export default async function EquipePage({
         <p className="text-xs text-stone-400 mb-3">Ajouter un membre</p>
         <AddStaffForm slug={slug} entities={entities.map((e) => ({ id: e.id, name: e.name }))} accentColor={accentColor} />
       </div>
-    </main>
+    </ProPanel>
+    </ProShell>
   );
 }

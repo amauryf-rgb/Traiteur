@@ -510,3 +510,24 @@ export async function getInterEntityInvoices(tx: Tx, establishmentId: string) {
     .where(eq(interEntityInvoices.establishmentId, establishmentId))
     .orderBy(desc(interEntityInvoices.createdAt));
 }
+
+// Détail complet d'une facture inter-entités (écran de détail + génération
+// PDF) : la facture, ses lignes, et les deux entités avec leur modèle de
+// facturation (adresse/TVA/IBAN) tel qu'il existe au moment de la
+// consultation — pas figé à la génération, donc une correction d'adresse
+// après coup se répercute sur les PDF re-téléchargés ensuite.
+export async function getInterEntityInvoiceDetail(tx: Tx, invoiceId: string) {
+  const [invoice] = await tx.select().from(interEntityInvoices).where(eq(interEntityInvoices.id, invoiceId));
+  if (!invoice) return null;
+
+  const lines = await tx
+    .select()
+    .from(interEntityInvoiceLines)
+    .where(eq(interEntityInvoiceLines.invoiceId, invoiceId));
+
+  const [fromEntity] = await tx.select().from(legalEntities).where(eq(legalEntities.id, invoice.fromEntityId));
+  const [toEntity] = await tx.select().from(legalEntities).where(eq(legalEntities.id, invoice.toEntityId));
+  if (!fromEntity || !toEntity) return null;
+
+  return { invoice, lines, fromEntity, toEntity };
+}

@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { interEntityInvoiceLines, interEntityInvoices, legalEntities, orders } from "@/lib/db/schema";
-import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/lib/tenant";
+import { requireStaffTenantContext, runAsTenant, type Tx, type TenantContext } from "@/lib/tenant";
 
 async function requireOwner(slug: string): Promise<{ establishmentId: string; context: TenantContext }> {
   const staffTenant = await requireStaffTenantContext();
@@ -12,6 +12,26 @@ async function requireOwner(slug: string): Promise<{ establishmentId: string; co
     redirect(`/${slug}/pro/login`);
   }
   return { establishmentId: staffTenant.session.establishmentId, context: staffTenant.context };
+}
+
+// Séquentiel par établissement et par année civile ("F-2026-0001"), calculé
+// dans la même transaction que l'insertion de la facture. Filet de sécurité
+// contre une double soumission concurrente : la contrainte unique
+// (establishment_id, invoice_number) fait échouer l'insert plutôt que de
+// laisser passer un doublon silencieux — voir inter_entity_invoices_number_unique.
+async function nextInvoiceNumber(tx: Tx, establishmentId: string): Promise<string> {
+  const year = new Date().getFullYear();
+  const [{ count }] = await tx
+    .select({ count: sql<string>`count(*)` })
+    .from(interEntityInvoices)
+    .where(
+      and(
+        eq(interEntityInvoices.establishmentId, establishmentId),
+        sql`extract(year from ${interEntityInvoices.createdAt}) = ${year}`
+      )
+    );
+  const seq = Number(count) + 1;
+  return `F-${year}-${String(seq).padStart(4, "0")}`;
 }
 
 export async function generateInvoice(slug: string, formData: FormData) {
@@ -52,6 +72,7 @@ export async function generateInvoice(slug: string, formData: FormData) {
         establishmentId,
         fromEntityId,
         toEntityId,
+        invoiceNumber: await nextInvoiceNumber(tx, establishmentId),
         periodStart,
         periodEnd,
         totalAmount: total.toFixed(2),
@@ -107,6 +128,7 @@ export async function createManualInvoice(
         establishmentId,
         fromEntityId,
         toEntityId,
+        invoiceNumber: await nextInvoiceNumber(tx, establishmentId),
         periodStart: date,
         periodEnd: date,
         totalAmount: amount.toFixed(2),
@@ -127,6 +149,52 @@ export async function createManualInvoice(
   });
 
   if (result?.error) return result;
+
+  revalidatePath(`/${slug}/pro/facturation`);
+  return {};
+}
+
+export type BillingProfileState = { error?: string };
+
+// Modèle de facturation d'une entité (adresse, IBAN, TVA) : rempli une fois,
+// réutilisé pour chaque facture inter-entités générée pour cette entité —
+// voir isBillingProfileComplete dans lib/billing.ts pour le contrôle fait
+// avant de générer un PDF.
+export async function updateEntityBillingProfile(
+  slug: string,
+  entityId: string,
+  _prevState: BillingProfileState,
+  formData: FormData
+): Promise<BillingProfileState> {
+  const { context } = await requireOwner(slug);
+
+  const vatNumber = String(formData.get("vatNumber") ?? "").trim();
+  const addressLine1 = String(formData.get("addressLine1") ?? "").trim();
+  const addressLine2 = String(formData.get("addressLine2") ?? "").trim();
+  const addressPostalCode = String(formData.get("addressPostalCode") ?? "").trim();
+  const addressCity = String(formData.get("addressCity") ?? "").trim();
+  const addressCountry = String(formData.get("addressCountry") ?? "").trim();
+  const ibanNumber = String(formData.get("ibanNumber") ?? "").trim();
+  const bankName = String(formData.get("bankName") ?? "").trim();
+
+  const updated = await runAsTenant(context, (tx) =>
+    tx
+      .update(legalEntities)
+      .set({
+        vatNumber: vatNumber || null,
+        addressLine1: addressLine1 || null,
+        addressLine2: addressLine2 || null,
+        addressPostalCode: addressPostalCode || null,
+        addressCity: addressCity || null,
+        addressCountry: addressCountry || null,
+        ibanNumber: ibanNumber || null,
+        bankName: bankName || null,
+      })
+      .where(eq(legalEntities.id, entityId))
+      .returning({ id: legalEntities.id })
+  );
+
+  if (updated.length === 0) return { error: "Entité introuvable." };
 
   revalidatePath(`/${slug}/pro/facturation`);
   return {};

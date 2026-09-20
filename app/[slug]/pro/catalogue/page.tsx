@@ -6,6 +6,7 @@ import { aggregateByProduct } from "@/lib/aggregate";
 import { getTodayISO } from "@/lib/slots";
 import { formatCHF } from "@/lib/format";
 import { buttonClassName } from "@/components/ui/Button";
+import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { toggleActive } from "./actions";
 
 export default async function CataloguePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,7 +18,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   const staffTenant = await requireStaffTenantContext();
   if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
   if (staffTenant.session.role === "employee") redirect(`/${slug}/pro`);
-  const { context } = staffTenant;
+  const { session, context } = staffTenant;
 
   const { products, aggregated } = await runAsTenant(context, async (tx) => {
     const products = await getManagedProducts(tx, establishment.id);
@@ -29,17 +30,23 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   const accentColor = establishment.accentColor ?? "#1a1a1a";
 
   return (
-    <main className="max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 text-white" style={{ backgroundColor: accentColor }}>
+    <ProShell
+      slug={slug}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      staffName={session.name}
+      isOwner={session.role === "owner"}
+      active="catalogue"
+    >
+    <ProPanel>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
         <p className="font-serif text-sm">Catalogue — {establishment.name}</p>
-        <div className="flex items-center gap-4">
-          <Link href={`/${slug}/pro/catalogue/nouveau`} className="text-xs bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5">
-            + Ajouter un produit
-          </Link>
-          <Link href={`/${slug}/pro`} className="text-xs text-white/80 hover:text-white underline">
-            Planning
-          </Link>
-        </div>
+        <Link
+          href={`/${slug}/pro/catalogue/nouveau`}
+          className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs`}
+          style={{ borderColor: accentColor, color: accentColor }}
+        >
+          + Ajouter un produit
+        </Link>
       </div>
 
       <p className="px-6 py-3 text-xs text-stone-400 border-b border-stone-200">
@@ -108,6 +115,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
         })}
         {products.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucun produit pour l&apos;instant.</p>}
       </div>
-    </main>
+    </ProPanel>
+    </ProShell>
   );
 }

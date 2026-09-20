@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
 import { formatCHF } from "@/lib/format";
 import { Button, buttonClassName, buttonStyle } from "@/components/ui/Button";
 import { checkoutComptoir } from "./actions";
@@ -85,21 +84,20 @@ export function ComptoirClient({
   }
 
   return (
-    <main className="max-w-4xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
-        <div>
-          <p className="font-serif text-base">Commande au comptoir</p>
-          <Link href={`/${slug}/pro`} className="text-xs text-stone-400 hover:text-stone-600">
-            ← Planning
-          </Link>
-        </div>
-        <button onClick={nouveauClient} className={`${buttonClassName("secondary")} text-sm`} style={buttonStyle("secondary", accentColor)}>
+    <>
+      <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-stone-200 flex-wrap">
+        <p className="font-serif text-base whitespace-nowrap">Commande au comptoir</p>
+        <button
+          onClick={nouveauClient}
+          className={`${buttonClassName("secondary")} text-sm whitespace-nowrap shrink-0`}
+          style={buttonStyle("secondary", accentColor)}
+        >
           Nouveau client
         </button>
       </div>
 
-      <div className="grid grid-cols-3">
-        <div className="col-span-2 border-r border-stone-200">
+      <div className="grid grid-cols-1 md:grid-cols-3">
+        <div className="md:col-span-2 md:border-r border-stone-200">
           <div className="flex gap-4 px-6 py-3 border-b border-stone-200 text-sm overflow-x-auto">
             {categories.map((category) => (
               <button
@@ -117,7 +115,7 @@ export function ComptoirClient({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 p-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 p-6">
             {visibleProducts.map((product) => (
               <button
                 key={product.id}
@@ -129,7 +127,7 @@ export function ComptoirClient({
               </button>
             ))}
             {visibleProducts.length === 0 && (
-              <p className="col-span-2 text-sm text-stone-400 text-center py-8">Aucun produit dans cette catégorie.</p>
+              <p className="col-span-2 lg:col-span-3 text-sm text-stone-400 text-center py-8">Aucun produit dans cette catégorie.</p>
             )}
           </div>
         </div>
@@ -183,6 +181,6 @@ export function ComptoirClient({
           </div>
         </div>
       </div>
-    </main>
+    </>
   );
 }

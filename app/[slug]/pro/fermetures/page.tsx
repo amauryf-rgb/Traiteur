@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getEstablishmentBySlug, getUpcomingClosures } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { formatDateLabel, getTodayISO } from "@/lib/slots";
 import { Button } from "@/components/ui/Button";
+import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { AddClosureForm } from "./AddClosureForm";
 import { removeClosure, updateClosedWeekdays } from "./actions";
 
@@ -26,7 +26,7 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
   const staffTenant = await requireStaffTenantContext();
   if (!staffTenant || staffTenant.session.establishmentId !== establishment.id) redirect(`/${slug}/pro/login`);
   if (staffTenant.session.role !== "owner") redirect(`/${slug}/pro`);
-  const { context } = staffTenant;
+  const { session, context } = staffTenant;
 
   const today = getTodayISO();
   const closures = await runAsTenant(context, (tx) => getUpcomingClosures(tx, establishment.id, today));
@@ -35,13 +35,15 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
   const closedWeekdaySet = new Set(establishment.closedWeekdays);
 
   return (
-    <main className="max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-6 py-4 text-white" style={{ backgroundColor: accentColor }}>
-        <p className="font-serif text-sm">Fermetures — {establishment.name}</p>
-        <Link href={`/${slug}/pro`} className="text-xs text-white/80 hover:text-white underline">
-          Retour au planning
-        </Link>
-      </div>
+    <ProShell
+      slug={slug}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      staffName={session.name}
+      isOwner
+      active="fermetures"
+    >
+    <ProPanel>
+      <p className="font-serif text-sm px-6 py-4 border-b border-stone-200">Fermetures — {establishment.name}</p>
 
       <div className="px-6 py-4 border-b border-stone-200">
         <p className="text-xs text-stone-400 mb-3">
@@ -82,6 +84,7 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
         </div>
         <AddClosureForm slug={slug} accentColor={accentColor} />
       </div>
-    </main>
+    </ProPanel>
+    </ProShell>
   );
 }
