@@ -32,21 +32,25 @@ function ensureInit() {
   // toujours fidèlement (hover: hover) et (pointer: fine) selon la
   // configuration souris/trackpad — la ligne se retrouvait coincée en mode
   // tactile (bouton "+" caché) sur un vrai ordinateur avec une vraie souris.
-  // Un mousemove authentique ne peut pas venir d'un appareil purement
-  // tactile, donc on l'utilise comme signal définitif — une fois vrai,
-  // toujours vrai (jamais de retour en arrière), sans jamais activer le
-  // survol pour un appareil réellement tactile qui ne l'aura simplement
-  // jamais déclenché.
-  window.addEventListener(
-    "mousemove",
-    () => {
-      if (!cached) {
-        cached = true;
-        notify();
-      }
-    },
-    { once: true }
-  );
+  // Un vrai déplacement de souris est un signal définitif — une fois vrai,
+  // toujours vrai (jamais de retour en arrière).
+  //
+  // IMPORTANT : on écoute "pointermove" avec pointerType "mouse", pas
+  // "mousemove" — les navigateurs mobiles émettent un mousemove de
+  // compatibilité juste après un tap tactile (pour les sites écrits pour la
+  // souris), ce qui déclenchait ce filet à tort sur mobile et coinçait
+  // définitivement toute la page en mode survol (bouton "+" et photo en
+  // tooltip positionné hors écran au lieu de l'accordéon tactile). Un tap
+  // tactile ne génère jamais de pointermove avec pointerType "mouse" — seul
+  // un vrai mouvement de souris/trackpad le fait.
+  function onPointerMove(e: PointerEvent) {
+    if (!cached && e.pointerType === "mouse") {
+      cached = true;
+      notify();
+      window.removeEventListener("pointermove", onPointerMove);
+    }
+  }
+  window.addEventListener("pointermove", onPointerMove);
 }
 
 function subscribe(callback: () => void) {
