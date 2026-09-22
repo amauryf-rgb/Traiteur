@@ -14,6 +14,7 @@ import {
   orderItems,
   orders,
   paymentAccounts,
+  platformAdmins,
   productAllergens,
   productCapacityRules,
   productionLots,
@@ -30,6 +31,76 @@ import type { OrderType } from "../types";
 export async function getEstablishmentBySlug(slug: string) {
   const [establishment] = await db.select().from(establishments).where(eq(establishments.slug, slug));
   return establishment ?? null;
+}
+
+// platform_admins n'a lui non plus aucune policy RLS (schema.sql, section
+// 12) : c'est cette table qui détermine qui a le droit de tout voir, elle
+// ne peut donc pas dépendre elle-même d'un tenant courant.
+export async function getPlatformAdminCount(): Promise<number> {
+  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(platformAdmins);
+  return row.count;
+}
+
+export async function getPlatformAdminByEmail(email: string) {
+  const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.email, email));
+  return admin ?? null;
+}
+
+export type PlatformEstablishmentSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  onboardingStatus: string;
+  orderCount: number;
+  revenue: string;
+  clientCount: number;
+  ownerAccessCode: string | null;
+};
+
+// Lecture cross-tenant — n'a de sens que sous un tx ouvert avec
+// isPlatformAdmin=true (voir requirePlatformAdminContext), seul cas où les
+// policies RLS de orders/clients/staff_members laissent passer des lignes
+// de plusieurs établissements à la fois.
+export async function getPlatformEstablishmentSummaries(tx: Tx): Promise<PlatformEstablishmentSummary[]> {
+  const allEstablishments = await tx
+    .select({ id: establishments.id, name: establishments.name, slug: establishments.slug, onboardingStatus: establishments.onboardingStatus })
+    .from(establishments)
+    .orderBy(asc(establishments.name));
+
+  const orderStats = await tx
+    .select({
+      establishmentId: orders.establishmentId,
+      orderCount: sql<number>`count(*)::int`,
+      revenue: sql<string>`coalesce(sum(${orders.totalAmount}), 0)`,
+    })
+    .from(orders)
+    .where(ne(orders.status, "cancelled"))
+    .groupBy(orders.establishmentId);
+  const orderStatsById = new Map(orderStats.map((row) => [row.establishmentId, row]));
+
+  const clientCounts = await tx
+    .select({ establishmentId: clients.establishmentId, count: sql<number>`count(*)::int` })
+    .from(clients)
+    .groupBy(clients.establishmentId);
+  const clientCountById = new Map(clientCounts.map((row) => [row.establishmentId, row.count]));
+
+  const owners = await tx
+    .select({ establishmentId: staffMembers.establishmentId, accessCode: staffMembers.accessCode, createdAt: staffMembers.createdAt })
+    .from(staffMembers)
+    .where(eq(staffMembers.role, "owner"))
+    .orderBy(asc(staffMembers.createdAt));
+  const ownerCodeById = new Map<string, string | null>();
+  for (const owner of owners) {
+    if (!ownerCodeById.has(owner.establishmentId)) ownerCodeById.set(owner.establishmentId, owner.accessCode);
+  }
+
+  return allEstablishments.map((establishment) => ({
+    ...establishment,
+    orderCount: orderStatsById.get(establishment.id)?.orderCount ?? 0,
+    revenue: orderStatsById.get(establishment.id)?.revenue ?? "0",
+    clientCount: clientCountById.get(establishment.id) ?? 0,
+    ownerAccessCode: ownerCodeById.get(establishment.id) ?? null,
+  }));
 }
 
 export async function getDefaultLegalEntity(tx: Tx, establishmentId: string) {

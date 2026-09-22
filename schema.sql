@@ -111,6 +111,10 @@ CREATE TABLE platform_admins (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name                TEXT NOT NULL,
     email               TEXT NOT NULL UNIQUE,
+    -- scrypt, même mécanisme que clients.password_hash. Posé une seule fois
+    -- via /admin/setup (bloqué dès qu'une ligne existe), jamais par une
+    -- inscription ouverte.
+    password_hash       TEXT NOT NULL,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

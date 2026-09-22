@@ -146,6 +146,10 @@ export const platformAdmins = pgTable("platform_admins", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  // scrypt, même mécanisme que clients.password_hash (lib/auth.ts) — posé
+  // une seule fois via /admin/setup, jamais par un formulaire d'inscription
+  // ouvert (voir cette page pour la garde "une seule création possible").
+  passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

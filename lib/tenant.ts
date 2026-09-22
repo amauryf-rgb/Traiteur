@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { getClientSession, getStaffSession } from "./auth";
+import { getClientSession, getPlatformAdminSession, getStaffSession } from "./auth";
 import { getEstablishmentBySlug } from "./db/queries";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -33,6 +33,21 @@ export async function requireStaffTenantContext() {
   return {
     session,
     context: { establishmentId: session.establishmentId, isPlatformAdmin: false } satisfies TenantContext,
+  };
+}
+
+// Contexte pour une page ADMIN PLATEFORME (app/admin/**) : dérivé
+// exclusivement de la session platform_admin signée (cookie séparé de
+// staff_session, jamais du même cookie avec un rôle "owner" élargi — voir
+// lib/auth.ts). establishmentId reste null : isPlatformAdmin=true suffit à
+// lui seul à faire sauter RLS sur chaque table concernée (voir schema.sql,
+// section 12), donc aucun tenant courant n'a besoin d'être fixé ici.
+export async function requirePlatformAdminContext() {
+  const session = await getPlatformAdminSession();
+  if (!session) return null;
+  return {
+    session,
+    context: { establishmentId: null, isPlatformAdmin: true } satisfies TenantContext,
   };
 }
 

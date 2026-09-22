@@ -135,6 +135,53 @@ export async function clearClientSession() {
 }
 
 // ---------------------------------------------------------------------
+// Session platform admin — cookie séparé des sessions staff/client, jamais
+// posé ni lu par le code par-établissement. C'est cette séparation (pas
+// seulement le rôle) qui garantit qu'une session staff, même owner, ne
+// donne jamais accès à /admin.
+// ---------------------------------------------------------------------
+
+const PLATFORM_ADMIN_COOKIE_NAME = "platform_admin_session";
+const PLATFORM_ADMIN_SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
+
+export type PlatformAdminSession = {
+  platformAdminId: string;
+  name: string;
+  exp: number;
+};
+
+export async function createPlatformAdminSession(admin: { id: string; name: string }) {
+  const payload: PlatformAdminSession = {
+    platformAdminId: admin.id,
+    name: admin.name,
+    exp: Date.now() + PLATFORM_ADMIN_SESSION_DURATION_MS,
+  };
+  const store = await cookies();
+  store.set(PLATFORM_ADMIN_COOKIE_NAME, sign(payload), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: PLATFORM_ADMIN_SESSION_DURATION_MS / 1000,
+  });
+}
+
+export async function getPlatformAdminSession(): Promise<PlatformAdminSession | null> {
+  const store = await cookies();
+  const token = store.get(PLATFORM_ADMIN_COOKIE_NAME)?.value;
+  if (!token) return null;
+
+  const payload = verify<PlatformAdminSession>(token);
+  if (!payload || payload.exp < Date.now()) return null;
+  return payload;
+}
+
+export async function clearPlatformAdminSession() {
+  const store = await cookies();
+  store.delete(PLATFORM_ADMIN_COOKIE_NAME);
+}
+
+// ---------------------------------------------------------------------
 // Mots de passe client — scrypt natif (module crypto de Node), pas de
 // dépendance ajoutée, cohérent avec le HMAC déjà utilisé ci-dessus.
 // ---------------------------------------------------------------------
