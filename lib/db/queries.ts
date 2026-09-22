@@ -74,6 +74,8 @@ export type CatalogueProduct = {
   currency: string;
   photoUrl: string | null;
   categoryName: string | null;
+  categorySortOrder: number | null;
+  sectionTitle: string | null;
   allergens: string[];
 };
 
@@ -93,10 +95,13 @@ export async function getCatalogueProducts(
       currency: products.currency,
       photoUrl: products.photoUrl,
       categoryName: categories.name,
+      categorySortOrder: categories.sortOrder,
+      sectionTitle: products.sectionTitle,
     })
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(eq(products.establishmentId, establishmentId), eq(products.isActive, true), eq(availabilityColumn, true)));
+    .where(and(eq(products.establishmentId, establishmentId), eq(products.isActive, true), eq(availabilityColumn, true)))
+    .orderBy(asc(categories.sortOrder), asc(products.createdAt));
 
   if (rows.length === 0) return [];
 
@@ -333,18 +338,38 @@ export async function getProductionLotsForDate(tx: Tx, establishmentId: string, 
     .where(and(eq(productionLots.establishmentId, establishmentId), eq(productionLots.productionDate, date)));
 }
 
-export type StaffTask = {
-  id: string;
-  productName: string;
-  quantity: number;
-  readyByTime: string;
-  status: string;
-};
+// Deux origines pour une tâche employé, gardées distinctes (jamais fusionnées
+// en un seul objet ambigu) : un lot de production (assignation par produit
+// agrégé, potentiellement partagée entre plusieurs commandes) ou une
+// commande entière assignée directement (écran 8 bis). Même discrétion dans
+// les deux cas : jamais de nom ni de coordonnées client, voir "order" ci-dessous
+// qui n'expose que le contenu (produits × quantités) et l'heure de retrait.
+export type StaffTask =
+  | {
+      kind: "lot";
+      id: string;
+      productName: string;
+      quantity: number;
+      readyByTime: string;
+      status: string;
+    }
+  | {
+      kind: "order";
+      id: string;
+      orderType: string;
+      items: { productName: string; quantity: number }[];
+      readyByTime: string;
+      // Statut brut de la commande (orders.status) — pas simplifié en
+      // pending/done, pour rester compatible avec togglePrepared qui bascule
+      // spécifiquement entre "confirmed" et "completed" (même logique que le
+      // planning général, voir DayView.tsx).
+      status: string;
+    };
 
 // Vue employé (écran 10) : accès allégé, sans prix ni informations client —
-// uniquement les tâches de production qui lui sont assignées ce jour-là.
+// uniquement les tâches (des deux origines) qui lui sont assignées ce jour-là.
 export async function getTasksForStaffMember(tx: Tx, staffMemberId: string, date: string): Promise<StaffTask[]> {
-  const rows = await tx
+  const lotRows = await tx
     .select({
       id: productionLots.id,
       productName: products.name,
@@ -354,9 +379,31 @@ export async function getTasksForStaffMember(tx: Tx, staffMemberId: string, date
     })
     .from(productionLots)
     .innerJoin(products, eq(productionLots.productId, products.id))
-    .where(and(eq(productionLots.assignedTo, staffMemberId), eq(productionLots.productionDate, date)))
-    .orderBy(asc(productionLots.readyByTime));
-  return rows;
+    .where(and(eq(productionLots.assignedTo, staffMemberId), eq(productionLots.productionDate, date)));
+  const lotTasks: StaffTask[] = lotRows.map((row) => ({ kind: "lot", ...row }));
+
+  const assignedOrders = await tx
+    .select()
+    .from(orders)
+    .where(and(eq(orders.assignedTo, staffMemberId), eq(orders.pickupDate, date), ne(orders.status, "cancelled")));
+
+  const orderTasks: StaffTask[] = [];
+  for (const order of assignedOrders) {
+    const items = await tx
+      .select({ productName: orderItems.productNameSnapshot, quantity: orderItems.quantity })
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
+    orderTasks.push({
+      kind: "order",
+      id: order.id,
+      orderType: order.orderType,
+      items,
+      readyByTime: order.pickupTime,
+      status: order.status,
+    });
+  }
+
+  return [...lotTasks, ...orderTasks].sort((a, b) => a.readyByTime.localeCompare(b.readyByTime));
 }
 
 export async function getCategoriesForEstablishment(tx: Tx, establishmentId: string) {
@@ -374,6 +421,7 @@ export type ManagedProduct = {
   priceAmount: string;
   categoryId: string | null;
   categoryName: string | null;
+  sectionTitle: string | null;
   photoUrl: string | null;
   isActive: boolean;
   availableBoutique: boolean;
@@ -396,6 +444,7 @@ export async function getManagedProducts(tx: Tx, establishmentId: string): Promi
       priceAmount: products.priceAmount,
       categoryId: products.categoryId,
       categoryName: categories.name,
+      sectionTitle: products.sectionTitle,
       photoUrl: products.photoUrl,
       isActive: products.isActive,
       availableBoutique: products.availableBoutique,

@@ -69,6 +69,7 @@ export async function saveProduct(
   if (!Number.isFinite(price) || price < 0) return { error: "Prix invalide." };
 
   const description = String(formData.get("description") ?? "").trim() || null;
+  const sectionTitle = String(formData.get("sectionTitle") ?? "").trim() || null;
   const isActive = formData.get("isActive") === "on";
   const availableBoutique = formData.get("availableBoutique") === "on";
   const availableTraiteur = formData.get("availableTraiteur") === "on";
@@ -84,6 +85,7 @@ export async function saveProduct(
       name,
       priceAmount: price.toFixed(2),
       description,
+      sectionTitle,
       categoryId,
       isActive,
       availableBoutique,

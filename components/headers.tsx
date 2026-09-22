@@ -32,25 +32,6 @@ export function IdentityHeader({ establishment, line }: { establishment: Establi
   );
 }
 
-export function BrandBanner({ establishment }: { establishment: Establishment }) {
-  return (
-    <div className="text-center px-6 py-6" style={{ backgroundColor: establishment.accentColor ?? "#1a1a1a" }}>
-      {establishment.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={establishment.logoUrl} alt={establishment.name} className="h-9 sm:h-12 max-w-[60%] mx-auto object-contain" />
-      ) : (
-        <>
-          <div className="flex justify-center mb-3">
-            <Monogram name={establishment.name} accentColor={establishment.accentColor} invert />
-          </div>
-          <p className="text-white text-xl font-serif">{establishment.name}</p>
-        </>
-      )}
-      {establishment.tagline && <p className="text-white/70 text-sm italic mt-1">{establishment.tagline}</p>}
-    </div>
-  );
-}
-
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="text-center px-6 py-6 border-b border-stone-200">

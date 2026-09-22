@@ -59,6 +59,20 @@ export function ProductForm({
       </div>
 
       <div>
+        <label className="block text-xs text-stone-400 mb-1">Sous-titre de section (optionnel)</label>
+        <input
+          name="sectionTitle"
+          defaultValue={product?.sectionTitle ?? ""}
+          placeholder="ex. Pâtes fraîches"
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
+        />
+        <p className="text-xs text-stone-400 mt-1">
+          Regroupe les produits partageant le même intitulé sous ce sous-titre dans le catalogue client, au sein de
+          leur catégorie. Laisser vide pour ne pas regrouper.
+        </p>
+      </div>
+
+      <div>
         <label className="block text-xs text-stone-400 mb-1">Description</label>
         <textarea
           name="description"

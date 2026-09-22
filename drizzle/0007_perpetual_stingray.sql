@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "section_title" text;

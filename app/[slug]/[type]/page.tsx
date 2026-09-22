@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCatalogueProducts, getClosuresInRange } from "@/lib/db/queries";
-import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
+import { getClientTenantContext, getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import {
   getBoutiqueDate,
   getBoutiqueTimes,
@@ -62,6 +62,11 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   const dates = type === "boutique" ? [getBoutiqueDate()] : getTraiteurDates(closedDates);
   const times = type === "boutique" ? getBoutiqueTimes() : getTraiteurTimes();
 
+  // Affichage seul (nom / lien de déconnexion dans le bandeau) — la
+  // vérification d'accès reste inchangée, ce compte n'a jamais été requis
+  // pour commander (voir CatalogueHeader).
+  const clientTenant = await getClientTenantContext(slug);
+
   return (
     <CatalogueClient
       slug={slug}
@@ -72,6 +77,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
         accentColor: establishment.accentColor,
         logoUrl: establishment.logoUrl,
       }}
+      clientName={clientTenant?.session.name ?? null}
       products={products}
       dates={dates}
       times={times}

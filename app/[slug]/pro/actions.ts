@@ -26,21 +26,31 @@ export async function togglePrepared(slug: string, orderId: string, currentStatu
   if (!staffTenant) {
     redirect(`/${slug}/pro/login`);
   }
-  const { context } = staffTenant;
+  const { session, context } = staffTenant;
+
+  // Un employé ne peut marquer prête que la commande qui lui a été assignée
+  // en entier (orders.assignedTo) — ce contrôle n'existait pas avant que
+  // cette action devienne atteignable depuis la vue employé (planning des
+  // commandes entières) ; owner/manager gardent un accès non restreint
+  // depuis le planning général, comme avant.
+  const conditions = [eq(orders.id, orderId), eq(orders.establishmentId, session.establishmentId)];
+  if (session.role === "employee") {
+    conditions.push(eq(orders.assignedTo, session.staffMemberId));
+  }
 
   const nextStatus = currentStatus === "completed" ? "confirmed" : "completed";
   const updated = await runAsTenant(context, (tx) =>
     tx
       .update(orders)
       .set({ status: nextStatus, updatedAt: new Date() })
-      .where(eq(orders.id, orderId))
+      .where(and(...conditions))
       .returning({ id: orders.id })
   );
   // RLS filtre silencieusement une commande d'un autre établissement (0 ligne
   // affectée, pas d'erreur SQL) — sans ce contrôle, l'employé verrait un
   // succès alors que rien n'a été modifié en base.
   if (updated.length === 0) {
-    throw new Error("Commande introuvable ou n'appartenant pas à cet établissement.");
+    throw new Error("Commande introuvable, non autorisée, ou n'appartenant pas à cet établissement.");
   }
   revalidatePath(`/${slug}/pro`);
 }
@@ -109,6 +119,46 @@ export async function deleteLot(slug: string, lotId: string) {
 
     await tx.delete(productionLots).where(eq(productionLots.id, lotId));
     await recomputeExecutingEntities(tx, establishmentId, lot.productionDate);
+  });
+
+  revalidatePath(`/${slug}/pro`);
+}
+
+// Mode d'assignation "commande entière" — coexiste avec assignLot (par
+// produit agrégé) sans le remplacer. Le pro choisit l'un ou l'autre,
+// commande par commande.
+export async function assignOrderToStaff(slug: string, orderId: string, formData: FormData) {
+  const { establishmentId, context } = await requireManager(slug);
+
+  const assignedTo = String(formData.get("assignedTo") ?? "") || null;
+  if (!assignedTo) return;
+
+  await runAsTenant(context, async (tx) => {
+    const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.establishmentId, establishmentId)));
+    if (!order) throw new Error("Commande introuvable ou n'appartenant pas à cet établissement.");
+
+    // assignedTo vient d'un <select> réel, donc modifiable côté client — la
+    // FK seule ne suffit pas (bypass RLS), voir la même remarque dans
+    // assignLot ci-dessus.
+    const [staff] = await tx.select({ id: staffMembers.id }).from(staffMembers).where(and(eq(staffMembers.id, assignedTo), eq(staffMembers.establishmentId, establishmentId)));
+    if (!staff) throw new Error("Membre du personnel introuvable ou n'appartenant pas à cet établissement.");
+
+    await tx.update(orders).set({ assignedTo, updatedAt: new Date() }).where(eq(orders.id, orderId));
+    await recomputeExecutingEntities(tx, establishmentId, order.pickupDate);
+  });
+
+  revalidatePath(`/${slug}/pro`);
+}
+
+export async function unassignOrder(slug: string, orderId: string) {
+  const { establishmentId, context } = await requireManager(slug);
+
+  await runAsTenant(context, async (tx) => {
+    const [order] = await tx.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.establishmentId, establishmentId)));
+    if (!order) throw new Error("Commande introuvable ou n'appartenant pas à cet établissement.");
+
+    await tx.update(orders).set({ assignedTo: null, updatedAt: new Date() }).where(eq(orders.id, orderId));
+    await recomputeExecutingEntities(tx, establishmentId, order.pickupDate);
   });
 
   revalidatePath(`/${slug}/pro`);

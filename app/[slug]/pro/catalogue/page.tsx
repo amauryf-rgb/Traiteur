@@ -69,7 +69,8 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate ${product.isActive ? "" : "text-stone-400 line-through"}`}>{product.name}</p>
                 <p className="text-xs text-stone-400">
-                  {product.categoryName ?? "Sans catégorie"} · {formatCHF(Number(product.priceAmount))}
+                  {product.categoryName ?? "Sans catégorie"}
+                  {product.sectionTitle ? ` · ${product.sectionTitle}` : ""} · {formatCHF(Number(product.priceAmount))}
                 </p>
               </div>
 

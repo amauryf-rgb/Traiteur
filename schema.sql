@@ -146,6 +146,11 @@ CREATE TABLE products (
     category_id         UUID REFERENCES categories(id),
     name                TEXT NOT NULL,
     description         TEXT,
+    -- Sous-titre de section libre, saisi par le pro (écran catalogue) —
+    -- regroupe les produits d'une même catégorie sous un même intitulé côté
+    -- catalogue client (ex. "Pâtes fraîches" au sein de "Plats"). Pas de
+    -- table dédiée : comparaison texte à l'identique pour le regroupement.
+    section_title       TEXT,
     price_amount        NUMERIC(10,2) NOT NULL,
     currency            TEXT NOT NULL DEFAULT 'CHF',
     photo_url           TEXT,
@@ -224,6 +229,14 @@ CREATE TABLE orders (
     -- Entité exécutante : déduite automatiquement via l'assignation des tâches
     -- (section 6 de la synthèse). NULL ou = selling_entity_id dans le cas normal.
     executing_entity_id UUID REFERENCES legal_entities(id),
+
+    -- Mode d'assignation "commande entière" (écran 8 bis) : coexiste avec les
+    -- lots de production (production_lots) sans les remplacer — le pro choisit
+    -- l'un ou l'autre, commande par commande. Une commande assignée ainsi
+    -- détermine aussi executing_entity_id directement (voir
+    -- recomputeExecutingEntities dans lib/production.ts), et ses articles
+    -- disparaissent du panneau "à produire" agrégé (voir aggregateByProduct).
+    assigned_to          UUID REFERENCES staff_members(id),
 
     client_name         TEXT NOT NULL,
     client_contact      TEXT,                               -- email ou téléphone

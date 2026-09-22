@@ -43,9 +43,13 @@ export async function allocateLot(
 }
 
 // Détermine, pour chaque commande du jour, quelle entité l'a réellement
-// exécutée (section 6 de la synthèse) : uniquement quand tous ses articles
-// sont entièrement couverts par des lots assignés à des membres d'une même
-// entité — sinon laissé à null (ambigu, exclu de la facturation auto).
+// exécutée (section 6 de la synthèse). Deux sources, mutuellement
+// exclusives par commande :
+//   1. Assignation "commande entière" (orders.assigned_to) — directe, prend
+//      le pas sur les lots : l'entité exécutante est celle de l'employé assigné.
+//   2. Assignation par lots — comme avant, uniquement quand tous les articles
+//      sont entièrement couverts par des lots assignés à des membres d'une
+//      même entité — sinon laissé à null (ambigu, exclu de la facturation auto).
 export async function recomputeExecutingEntities(tx: Tx, establishmentId: string, productionDate: string) {
   const dayOrders = await tx
     .select()
@@ -53,6 +57,15 @@ export async function recomputeExecutingEntities(tx: Tx, establishmentId: string
     .where(and(eq(orders.establishmentId, establishmentId), eq(orders.pickupDate, productionDate)));
 
   for (const order of dayOrders) {
+    if (order.assignedTo) {
+      const [staff] = await tx.select().from(staffMembers).where(eq(staffMembers.id, order.assignedTo));
+      const executingEntityId = staff?.legalEntityId ?? null;
+      if (order.executingEntityId !== executingEntityId) {
+        await tx.update(orders).set({ executingEntityId }).where(eq(orders.id, order.id));
+      }
+      continue;
+    }
+
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
     if (items.length === 0) continue;
 

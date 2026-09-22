@@ -136,7 +136,11 @@ async function DayViewSection({
   const { activeOrders, aggregated, dailyMaxByProduct, lotsByProduct, staff } = await runAsTenant(context, async (tx) => {
     const dayOrders = await getOrdersForDate(tx, establishmentId, date);
     const activeOrders = dayOrders.filter((o) => o.status !== "cancelled");
-    const aggregated = aggregateByProduct(dayOrders);
+    // Une commande assignée en entier (orders.assignedTo) est exclue de
+    // l'agrégat "à produire" : son détail vit dans la colonne Commandes, pas
+    // ici — sinon ses articles seraient comptés deux fois (piège n°2 validé
+    // avec l'utilisateur avant ce chantier).
+    const aggregated = aggregateByProduct(dayOrders.filter((o) => !o.assignedTo));
 
     const rules = await getCapacityRulesForProducts(tx, aggregated.map((a) => a.productId));
     const dailyMaxByProduct = new Map<string, number>();

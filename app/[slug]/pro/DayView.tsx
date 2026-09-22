@@ -2,7 +2,7 @@ import Link from "next/link";
 import { addDaysISO, formatDateLabel } from "@/lib/slots";
 import { formatCHF } from "@/lib/format";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
-import { assignLot, deleteLot, togglePrepared } from "./actions";
+import { assignLot, assignOrderToStaff, deleteLot, togglePrepared, unassignOrder } from "./actions";
 import type { OrderWithItems, ProductionLotWithAssignee } from "@/lib/db/queries";
 import type { ProductAggregate } from "@/lib/aggregate";
 
@@ -45,6 +45,7 @@ export function DayView({
   staff: { id: string; name: string }[];
   accentColor: string;
 }) {
+  const staffNameById = new Map(staff.map((member) => [member.id, member.name]));
   const chiffreDuJour = activeOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const nowMinutes = (() => {
     const [h, m] = new Date().toLocaleTimeString("fr-CH", { timeZone: "Europe/Zurich", hour12: false }).split(":").map(Number);
@@ -208,6 +209,37 @@ export function DayView({
               <p className="text-xs text-stone-500 mt-1">
                 {order.items.map((i) => `${i.productNameSnapshot} ×${i.quantity}`).join(", ")}
               </p>
+
+              {/* Mode d'assignation "commande entière" — coexiste avec
+                  l'assignation par produit agrégé (colonne de gauche), sans
+                  la remplacer. Le pro choisit l'un ou l'autre par commande. */}
+              <div className="mt-1.5">
+                {order.assignedTo ? (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge tone="info">Assignée à {staffNameById.get(order.assignedTo) ?? "?"}</Badge>
+                    <form action={unassignOrder.bind(null, slug, order.id)}>
+                      <button type="submit" className="text-red-500 hover:text-red-700">
+                        Retirer
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <form action={assignOrderToStaff.bind(null, slug, order.id)} className="flex items-center gap-2 flex-wrap">
+                    <select name="assignedTo" className="border border-stone-200 rounded-md px-2 py-1 text-xs">
+                      <option value="">— Assigner toute la commande à —</option>
+                      {staff.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit" className="text-xs rounded-md px-2 py-1 text-white" style={{ backgroundColor: accentColor }}>
+                      Assigner
+                    </button>
+                  </form>
+                )}
+              </div>
+
               <div className="flex items-center justify-between mt-1.5">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-stone-400">{order.orderType === "boutique" ? "Boutique" : "Traiteur"}</span>

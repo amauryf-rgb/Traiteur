@@ -184,6 +184,12 @@ export const products = pgTable("products", {
   categoryId: uuid("category_id").references(() => categories.id),
   name: text("name").notNull(),
   description: text("description"),
+  // Sous-titre de section libre, saisi par le professionnel (écran
+  // catalogue) — regroupe les produits d'une même catégorie sous un même
+  // intitulé côté catalogue client (ex. "Pâtes fraîches" au sein de
+  // "Plats"). Pas de table dédiée : un simple texte comparé à l'identique
+  // suffit, voir MenuRow/CatalogueClient pour le regroupement à l'affichage.
+  sectionTitle: text("section_title"),
   priceAmount: numeric("price_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("CHF"),
   photoUrl: text("photo_url"),
@@ -263,6 +269,12 @@ export const orders = pgTable("orders", {
   orderType: text("order_type").notNull(),
   sellingEntityId: uuid("selling_entity_id").notNull().references(() => legalEntities.id),
   executingEntityId: uuid("executing_entity_id").references(() => legalEntities.id),
+  // Mode d'assignation "commande entière" (écran 8 bis) : coexiste avec les
+  // lots de production (production_lots) sans les remplacer — un pro choisit
+  // l'un ou l'autre, commande par commande. Voir recomputeExecutingEntities
+  // (lib/production.ts) pour l'interaction avec la facturation inter-entités,
+  // et aggregateByProduct pour l'exclusion du panneau "à produire" agrégé.
+  assignedTo: uuid("assigned_to").references(() => staffMembers.id),
   clientName: text("client_name").notNull(),
   clientContact: text("client_contact"),
   pickupDate: date("pickup_date").notNull(),
