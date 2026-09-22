@@ -63,7 +63,7 @@ export default async function AdminDashboardPage() {
                   <th className="px-4 py-2 font-normal text-right">Chiffre d&apos;affaires</th>
                   <th className="px-4 py-2 font-normal text-right">Commandes</th>
                   <th className="px-4 py-2 font-normal text-right">Clients</th>
-                  <th className="px-4 py-2 font-normal">Code owner</th>
+                  <th className="px-4 py-2 font-normal">Owners</th>
                   <th className="px-6 py-2 font-normal">Espace pro</th>
                 </tr>
               </thead>
@@ -79,7 +79,19 @@ export default async function AdminDashboardPage() {
                       <td className="px-4 py-3 text-right whitespace-nowrap">{formatCHF(Number(establishment.revenue))}</td>
                       <td className="px-4 py-3 text-right">{establishment.orderCount}</td>
                       <td className="px-4 py-3 text-right">{establishment.clientCount}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-stone-500">{establishment.ownerAccessCode ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-stone-500">
+                        {establishment.owners.length === 0 ? (
+                          "—"
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            {establishment.owners.map((owner, i) => (
+                              <span key={i} className="whitespace-nowrap">
+                                {owner.name} · <span className="font-mono">{owner.accessCode ?? "—"}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-3 whitespace-nowrap">
                         <Link href={`/${establishment.slug}/pro/login`} className="text-xs underline text-stone-500 hover:text-stone-700">
                           /{establishment.slug}/pro

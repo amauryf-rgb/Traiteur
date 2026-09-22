@@ -54,7 +54,11 @@ export type PlatformEstablishmentSummary = {
   orderCount: number;
   revenue: string;
   clientCount: number;
-  ownerAccessCode: string | null;
+  // Un établissement peut avoir plusieurs owners (ex. LabTraiteur : Michele
+  // pour l'entité Traiteur SA, Richard pour la Boutique Sàrl — un par
+  // entité juridique, voir lib/db/seed.ts) : n'en retenir qu'un seul serait
+  // trompeur, donc la liste complète, pas un accès unique.
+  owners: { name: string; accessCode: string | null }[];
 };
 
 // Lecture cross-tenant — n'a de sens que sous un tx ouvert avec
@@ -85,13 +89,15 @@ export async function getPlatformEstablishmentSummaries(tx: Tx): Promise<Platfor
   const clientCountById = new Map(clientCounts.map((row) => [row.establishmentId, row.count]));
 
   const owners = await tx
-    .select({ establishmentId: staffMembers.establishmentId, accessCode: staffMembers.accessCode, createdAt: staffMembers.createdAt })
+    .select({ establishmentId: staffMembers.establishmentId, name: staffMembers.name, accessCode: staffMembers.accessCode })
     .from(staffMembers)
     .where(eq(staffMembers.role, "owner"))
     .orderBy(asc(staffMembers.createdAt));
-  const ownerCodeById = new Map<string, string | null>();
+  const ownersById = new Map<string, { name: string; accessCode: string | null }[]>();
   for (const owner of owners) {
-    if (!ownerCodeById.has(owner.establishmentId)) ownerCodeById.set(owner.establishmentId, owner.accessCode);
+    const list = ownersById.get(owner.establishmentId) ?? [];
+    list.push({ name: owner.name, accessCode: owner.accessCode });
+    ownersById.set(owner.establishmentId, list);
   }
 
   return allEstablishments.map((establishment) => ({
@@ -99,7 +105,7 @@ export async function getPlatformEstablishmentSummaries(tx: Tx): Promise<Platfor
     orderCount: orderStatsById.get(establishment.id)?.orderCount ?? 0,
     revenue: orderStatsById.get(establishment.id)?.revenue ?? "0",
     clientCount: clientCountById.get(establishment.id) ?? 0,
-    ownerAccessCode: ownerCodeById.get(establishment.id) ?? null,
+    owners: ownersById.get(establishment.id) ?? [],
   }));
 }
 
