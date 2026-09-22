@@ -3,11 +3,12 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { addClosure, type AddClosureState } from "./actions";
+import type { OrderType } from "@/lib/types";
 
 const initialState: AddClosureState = {};
 
-export function AddClosureForm({ slug, accentColor }: { slug: string; accentColor: string }) {
-  const action = addClosure.bind(null, slug);
+export function AddClosureForm({ slug, orderType, accentColor }: { slug: string; orderType: OrderType; accentColor: string }) {
+  const action = addClosure.bind(null, slug, orderType);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (

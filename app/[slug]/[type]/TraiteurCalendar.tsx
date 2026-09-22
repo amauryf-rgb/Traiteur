@@ -40,7 +40,7 @@ export function TraiteurCalendar({
       const { start, end } = getMonthBounds(monthISO);
       const [statuses, closureDates] = await Promise.all([
         getMonthCapacityStatus(slug, productIds, monthISO),
-        getMonthClosureDates(slug, monthISO),
+        getMonthClosureDates(slug, monthISO, "traiteur"),
       ]);
       setStatusByDate(new Map(statuses.map((s) => [s.date, s])));
       setClosedDates(getClosedDatesInRange(closedWeekdays, closureDates, start, end));

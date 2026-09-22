@@ -34,11 +34,14 @@ CREATE TABLE establishments (
     onboarding_status   TEXT NOT NULL DEFAULT 'draft'
                         CHECK (onboarding_status IN ('draft', 'payment_pending', 'active', 'suspended')),
     -- Fermeture hebdomadaire récurrente : jours de semaine fermés, 0=dimanche
-    -- .. 6=samedi (convention JS Date#getDay()). Volontairement sur cette
-    -- table sans RLS : information publique par nature (le client doit
-    -- savoir quels jours sont fermés avant même qu'un tenant courant soit
-    -- connu), au même titre que name/tagline/accent_color ci-dessus.
-    closed_weekdays     INTEGER[] NOT NULL DEFAULT '{}',
+    -- .. 6=samedi (convention JS Date#getDay()). Séparée par univers de
+    -- vente (traiteur/boutique) : un établissement multi-entité (ex.
+    -- LabTraiteur) peut fermer l'un sans fermer l'autre. Volontairement sur
+    -- cette table sans RLS : information publique par nature (le client
+    -- doit savoir quels jours sont fermés avant même qu'un tenant courant
+    -- soit connu), au même titre que name/tagline/accent_color ci-dessus.
+    closed_weekdays_traiteur INTEGER[] NOT NULL DEFAULT '{}',
+    closed_weekdays_boutique INTEGER[] NOT NULL DEFAULT '{}',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -400,7 +403,7 @@ CREATE TABLE notifications (
 -- ---------------------------------------------------------------------
 -- 11. FERMETURES PONCTUELLES (congés, jours fériés)
 -- ---------------------------------------------------------------------
--- Distinctes de establishments.closed_weekdays (récurrence hebdomadaire) :
+-- Distinctes de establishments.closed_weekdays_* (récurrence hebdomadaire) :
 -- des dates précises, une par ligne. Contrairement à establishments, cette
 -- table porte des lignes établissement-scopées à protéger par RLS
 -- normalement, patron identique à cancellation_policies.
@@ -409,9 +412,14 @@ CREATE TABLE establishment_closures (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
     date                DATE NOT NULL,
+    -- NULL = ferme les deux univers ce jour-là ; 'traiteur'/'boutique' = un
+    -- seul. NULL n'étant jamais égal à NULL pour une contrainte UNIQUE
+    -- Postgres, l'unicité d'une fermeture "les deux univers" par date est
+    -- revérifiée applicativement (voir addClosure, app/[slug]/pro/fermetures/actions.ts).
+    order_type          TEXT CHECK (order_type IN ('traiteur', 'boutique')),
     reason              TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (establishment_id, date)
+    UNIQUE (establishment_id, date, order_type)
 );
 
 

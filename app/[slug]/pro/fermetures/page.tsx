@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
-import { getEstablishmentBySlug, getUpcomingClosures } from "@/lib/db/queries";
+import { getEstablishmentBySlug, getStaffOrderTypeScope, getUpcomingClosures, type EstablishmentClosure } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { formatDateLabel, getTodayISO } from "@/lib/slots";
 import { Button } from "@/components/ui/Button";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { AddClosureForm } from "./AddClosureForm";
 import { removeClosure, updateClosedWeekdays } from "./actions";
+import type { OrderType } from "@/lib/types";
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: "Lundi" },
@@ -16,6 +17,8 @@ const WEEKDAY_OPTIONS = [
   { value: 6, label: "Samedi" },
   { value: 0, label: "Dimanche" },
 ];
+
+const UNIVERSE_LABEL: Record<OrderType, string> = { traiteur: "Traiteur", boutique: "Boutique" };
 
 export default async function FermeturesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -29,10 +32,18 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
   const { session, context } = staffTenant;
 
   const today = getTodayISO();
-  const closures = await runAsTenant(context, (tx) => getUpcomingClosures(tx, establishment.id, today));
+  const { scope, closures } = await runAsTenant(context, async (tx) => ({
+    scope: await getStaffOrderTypeScope(tx, session.staffMemberId),
+    closures: await getUpcomingClosures(tx, establishment.id, today),
+  }));
 
   const accentColor = establishment.accentColor ?? "#1a1a1a";
-  const closedWeekdaySet = new Set(establishment.closedWeekdays);
+  // Un owner rattaché à un seul univers (ex. Richard/Boutique) ne gère que
+  // le sien ; un owner sans univers précis (établissement mono-entité) gère
+  // les deux, chacun dans sa propre section — voir "Trois points déjà
+  // tranchés" dans la conversation d'origine pour ce choix : séparé, sans
+  // bascule "voir tout" (contrairement au planning des commandes).
+  const universes: OrderType[] = scope ? [scope] : ["traiteur", "boutique"];
 
   return (
     <ProShell
@@ -45,11 +56,48 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
     <ProPanel>
       <p className="font-serif text-sm px-6 py-4 border-b border-stone-200">Fermetures — {establishment.name}</p>
 
-      <div className="px-6 py-4 border-b border-stone-200">
+      {universes.map((universe) => (
+        <ClosureSection
+          key={universe}
+          slug={slug}
+          universe={universe}
+          showLabel={universes.length > 1}
+          closedWeekdays={universe === "boutique" ? establishment.closedWeekdaysBoutique : establishment.closedWeekdaysTraiteur}
+          closures={closures.filter((c) => c.orderType === null || c.orderType === universe)}
+          accentColor={accentColor}
+        />
+      ))}
+    </ProPanel>
+    </ProShell>
+  );
+}
+
+function ClosureSection({
+  slug,
+  universe,
+  showLabel,
+  closedWeekdays,
+  closures,
+  accentColor,
+}: {
+  slug: string;
+  universe: OrderType;
+  showLabel: boolean;
+  closedWeekdays: number[];
+  closures: EstablishmentClosure[];
+  accentColor: string;
+}) {
+  const closedWeekdaySet = new Set(closedWeekdays);
+
+  return (
+    <div className="border-b border-stone-200 last:border-b-0">
+      {showLabel && <p className="px-6 pt-4 text-xs uppercase tracking-wide text-stone-400">{UNIVERSE_LABEL[universe]}</p>}
+
+      <div className="px-6 py-4 border-b border-stone-100">
         <p className="text-xs text-stone-400 mb-3">
           Fermeture hebdomadaire récurrente — ces jours ne seront jamais proposés au client, chaque semaine.
         </p>
-        <form action={updateClosedWeekdays.bind(null, slug)} className="flex flex-col gap-3">
+        <form action={updateClosedWeekdays.bind(null, slug, universe)} className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-4">
             {WEEKDAY_OPTIONS.map((day) => (
               <label key={day.value} className="flex items-center gap-1.5 text-sm">
@@ -64,7 +112,7 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
         </form>
       </div>
 
-      <div className="px-6 py-4 border-b border-stone-200">
+      <div className="px-6 py-4">
         <p className="text-xs text-stone-400 mb-3">Fermetures ponctuelles — congés, jours fériés</p>
         <div className="flex flex-col divide-y divide-stone-100 mb-4">
           {closures.map((closure) => (
@@ -82,9 +130,8 @@ export default async function FermeturesPage({ params }: { params: Promise<{ slu
           ))}
           {closures.length === 0 && <p className="py-4 text-center text-stone-400 text-sm">Aucune fermeture ponctuelle à venir.</p>}
         </div>
-        <AddClosureForm slug={slug} accentColor={accentColor} />
+        <AddClosureForm slug={slug} orderType={universe} accentColor={accentColor} />
       </div>
-    </ProPanel>
-    </ProShell>
+    </div>
   );
 }

@@ -13,7 +13,7 @@ import {
 import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
-import { getClosedDatesInRange, getMonthBounds } from "@/lib/slots";
+import { closureDatesForType, getClosedDatesInRange, getMonthBounds } from "@/lib/slots";
 import type { CartLine, OrderType } from "@/lib/types";
 
 // Statut de capacité par jour pour le calendrier client du tunnel traiteur —
@@ -33,17 +33,18 @@ export async function getMonthCapacityStatus(slug: string, productIds: string[],
   return runAsTenant(context, (tx) => getCapacityStatusForMonth(tx, productIds, start, end));
 }
 
-// Jours fermés (ponctuels) sur le mois affiché — closed_weekdays (récurrence)
-// est déjà connu côté client (statique, passé en prop depuis la page), donc
-// pas besoin de le refaire transiter ici.
-export async function getMonthClosureDates(slug: string, monthISO: string): Promise<string[]> {
+// Jours fermés (ponctuels) sur le mois affiché, pour un univers donné —
+// closed_weekdays_traiteur/boutique (récurrence) est déjà connu côté client
+// (statique, passé en prop depuis la page), donc pas besoin de le refaire
+// transiter ici.
+export async function getMonthClosureDates(slug: string, monthISO: string, orderType: OrderType): Promise<string[]> {
   const tenant = await getPublicTenantContext(slug);
   if (!tenant) return [];
   const { establishment, context } = tenant;
 
   const { start, end } = getMonthBounds(monthISO);
   const closures = await runAsTenant(context, (tx) => getClosuresInRange(tx, establishment.id, start, end));
-  return closures.map((c) => c.date);
+  return closureDatesForType(closures, orderType);
 }
 
 export type CartItemInput = { productId: string; quantity: number };
@@ -89,7 +90,8 @@ export async function reserveSlot(input: ReserveSlotInput): Promise<ReserveSlotR
       // .bind(), donc modifiable dans le corps de la requête — exactement le
       // même traitement que la capacité, qui n'est jamais fiée à l'UI seule.
       const closureRows = await getClosuresInRange(tx, establishment.id, input.date, input.date);
-      const closedDates = getClosedDatesInRange(establishment.closedWeekdays, closureRows.map((c) => c.date), input.date, input.date);
+      const closedWeekdays = input.orderType === "boutique" ? establishment.closedWeekdaysBoutique : establishment.closedWeekdaysTraiteur;
+      const closedDates = getClosedDatesInRange(closedWeekdays, closureDatesForType(closureRows, input.orderType), input.date, input.date);
       if (closedDates.has(input.date)) {
         throw new ClosedDateError();
       }

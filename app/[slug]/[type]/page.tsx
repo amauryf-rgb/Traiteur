@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCatalogueProducts, getClosuresInRange } from "@/lib/db/queries";
 import { getClientTenantContext, getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import {
+  closureDatesForType,
   getBoutiqueDate,
   getBoutiqueTimes,
   getClosedDatesInRange,
@@ -37,14 +38,15 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
     return { products, closureRows };
   });
 
-  const closedDates = getClosedDatesInRange(establishment.closedWeekdays, closureRows.map((c) => c.date), today, windowEnd);
+  const closedWeekdays = type === "boutique" ? establishment.closedWeekdaysBoutique : establishment.closedWeekdaysTraiteur;
+  const closedDates = getClosedDatesInRange(closedWeekdays, closureDatesForType(closureRows, type), today, windowEnd);
 
   // Boutique n'a qu'un seul jour actionnable (aujourd'hui) : s'il est fermé,
   // remplacer le catalogue par un message plutôt que par une liste vide ou
   // trompeuse (voir isTraiteurDateSelectable pour le même traitement côté
   // traiteur, où "fermé" = "complet", pas un nouvel état).
   if (type === "boutique" && closedDates.has(today)) {
-    const todayClosure = closureRows.find((c) => c.date === today);
+    const todayClosure = closureRows.find((c) => c.date === today && (c.orderType === null || c.orderType === type));
     return (
       <ClosedNotice
         slug={slug}
@@ -81,7 +83,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
       products={products}
       dates={dates}
       times={times}
-      closedWeekdays={establishment.closedWeekdays}
+      closedWeekdays={closedWeekdays}
     />
   );
 }

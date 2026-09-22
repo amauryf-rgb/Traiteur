@@ -147,6 +147,21 @@ export async function getStaffForEstablishment(tx: Tx, establishmentId: string) 
   return tx.select().from(staffMembers).where(eq(staffMembers.establishmentId, establishmentId));
 }
 
+// Univers (traiteur/boutique) auquel ce membre du staff est rattaché, via
+// l'entité juridique par défaut de son entité — ex. Richard (Boutique Sàrl)
+// → "boutique", Michele (Traiteur SA) → "traiteur". Retourne null si le
+// membre n'a pas d'entité, ou si son entité gère les deux univers
+// (defaultOrderType NULL, cas mono-entité) : dans ce cas, aucun filtrage à
+// appliquer côté planning — voir DayViewSection dans app/[slug]/pro/page.tsx.
+export async function getStaffOrderTypeScope(tx: Tx, staffMemberId: string): Promise<OrderType | null> {
+  const [row] = await tx
+    .select({ orderType: legalEntities.defaultOrderType })
+    .from(staffMembers)
+    .leftJoin(legalEntities, eq(staffMembers.legalEntityId, legalEntities.id))
+    .where(eq(staffMembers.id, staffMemberId));
+  return (row?.orderType as OrderType | null) ?? null;
+}
+
 export async function getPaymentAccountForEntity(tx: Tx, legalEntityId: string) {
   const [account] = await tx.select().from(paymentAccounts).where(eq(paymentAccounts.legalEntityId, legalEntityId));
   return account ?? null;
@@ -360,10 +375,12 @@ export async function getCapacityStatusForMonth(
 }
 
 // Fermetures ponctuelles sur une plage — combinée côté appelant avec
-// establishments.closed_weekdays (récurrence hebdomadaire, déjà présent sur
-// la ligne renvoyée par getEstablishmentBySlug, pas besoin d'une requête à
-// part) pour obtenir l'ensemble complet des jours fermés.
-export type EstablishmentClosure = { id: string; date: string; reason: string | null };
+// establishments.closed_weekdays_traiteur/boutique (récurrence hebdomadaire,
+// déjà présent sur la ligne renvoyée par getEstablishmentBySlug, pas besoin
+// d'une requête à part) pour obtenir l'ensemble complet des jours fermés.
+// orderType : null = ferme les deux univers ce jour-là ; sinon un seul —
+// voir closureDatesForType dans lib/slots.ts pour filtrer par univers.
+export type EstablishmentClosure = { id: string; date: string; orderType: string | null; reason: string | null };
 
 export async function getClosuresInRange(
   tx: Tx,
@@ -372,7 +389,12 @@ export async function getClosuresInRange(
   rangeEnd: string
 ): Promise<EstablishmentClosure[]> {
   return tx
-    .select({ id: establishmentClosures.id, date: establishmentClosures.date, reason: establishmentClosures.reason })
+    .select({
+      id: establishmentClosures.id,
+      date: establishmentClosures.date,
+      orderType: establishmentClosures.orderType,
+      reason: establishmentClosures.reason,
+    })
     .from(establishmentClosures)
     .where(
       and(
@@ -389,7 +411,12 @@ export async function getClosuresInRange(
 // sans se limiter à un mois particulier.
 export async function getUpcomingClosures(tx: Tx, establishmentId: string, fromDate: string): Promise<EstablishmentClosure[]> {
   return tx
-    .select({ id: establishmentClosures.id, date: establishmentClosures.date, reason: establishmentClosures.reason })
+    .select({
+      id: establishmentClosures.id,
+      date: establishmentClosures.date,
+      orderType: establishmentClosures.orderType,
+      reason: establishmentClosures.reason,
+    })
     .from(establishmentClosures)
     .where(and(eq(establishmentClosures.establishmentId, establishmentId), gte(establishmentClosures.date, fromDate)))
     .orderBy(asc(establishmentClosures.date));

@@ -68,11 +68,18 @@ export const establishments = pgTable("establishments", {
   customDomain: text("custom_domain"),
   onboardingStatus: text("onboarding_status").notNull().default("draft"),
   // Fermeture hebdomadaire récurrente : jours de semaine fermés, 0=dimanche
-  // .. 6=samedi (convention JS Date#getDay()). Volontairement sur cette
-  // table sans RLS : c'est une information publique par nature (le client
-  // doit savoir quels jours sont fermés avant même qu'un tenant courant
-  // soit connu), au même titre que name/tagline/accentColor ci-dessus.
-  closedWeekdays: integer("closed_weekdays").array().notNull().default([]),
+  // .. 6=samedi (convention JS Date#getDay()). Séparée par univers de vente
+  // (traiteur / boutique) — un établissement multi-entité (ex. LabTraiteur :
+  // Michele/Traiteur, Richard/Boutique) peut fermer l'un sans fermer
+  // l'autre. Un établissement mono-entité renseigne simplement les deux de
+  // façon identique depuis /pro/fermetures (voir cette page pour l'UI
+  // conditionnelle selon que le owner connecté est rattaché à un univers ou
+  // aux deux). Volontairement sur cette table sans RLS : information
+  // publique par nature (le client doit savoir quels jours sont fermés
+  // avant même qu'un tenant courant soit connu), au même titre que
+  // name/tagline/accentColor ci-dessus.
+  closedWeekdaysTraiteur: integer("closed_weekdays_traiteur").array().notNull().default([]),
+  closedWeekdaysBoutique: integer("closed_weekdays_boutique").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("onboarding_status_check", sql`${t.onboardingStatus} IN ('draft','payment_pending','active','suspended')`),
@@ -458,9 +465,17 @@ export const establishmentClosures = pgTable("establishment_closures", {
   id: uuid("id").primaryKey().defaultRandom(),
   establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
+  // NULL = ferme les deux univers ce jour-là (cas mono-entité, comportement
+  // historique) ; 'traiteur' ou 'boutique' = ferme seulement cet univers.
+  // NULL n'étant jamais égal à NULL pour une contrainte unique Postgres,
+  // l'unicité d'une fermeture "les deux univers" pour une même date est
+  // vérifiée applicativement (voir addClosure dans
+  // app/[slug]/pro/fermetures/actions.ts), pas seulement par l'index.
+  orderType: text("order_type"),
   reason: text("reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("establishment_closures_unique").on(t.establishmentId, t.date),
+  uniqueIndex("establishment_closures_unique").on(t.establishmentId, t.date, t.orderType),
+  check("establishment_closures_order_type_check", sql`${t.orderType} IN ('traiteur','boutique')`),
   tenantIsolationPolicy("establishment_closures_tenant_isolation", t.establishmentId),
 ]).enableRLS();

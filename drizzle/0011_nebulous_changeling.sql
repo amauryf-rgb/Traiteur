@@ -1,0 +1,1 @@
+ALTER TABLE "establishments" DROP COLUMN "closed_weekdays";

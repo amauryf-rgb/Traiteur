@@ -1,3 +1,5 @@
+import type { OrderType } from "./types";
+
 // Créneaux de retrait — l'établissement n'a pas encore d'horaires
 // d'ouverture configurables en base (hors périmètre du schéma actuel), donc
 // une plage fixe raisonnable sert de valeur par défaut pour le pilote.
@@ -121,10 +123,22 @@ export function isTraiteurDateSelectable(dateISO: string, closedDates: Set<strin
   );
 }
 
-// Combine closed_weekdays (récurrence, expansion pure sur la plage) et les
-// lignes de establishment_closures (dates ponctuelles) en un seul ensemble
-// de dates ISO fermées — calculé une fois par plage affichée (mois), jamais
-// par case de calendrier, exactement comme le statut de capacité.
+// Fermetures ponctuelles concernant un univers donné : une ligne avec
+// order_type NULL ferme les deux univers, une ligne 'traiteur'/'boutique' ne
+// ferme que celui-là — voir establishment_closures dans schema.sql.
+export function closureDatesForType(
+  closures: { date: string; orderType: string | null }[],
+  type: OrderType
+): string[] {
+  return closures.filter((c) => c.orderType === null || c.orderType === type).map((c) => c.date);
+}
+
+// Combine closed_weekdays_traiteur/boutique (récurrence, expansion pure sur
+// la plage) et les lignes de establishment_closures (dates ponctuelles,
+// déjà filtrées pour l'univers voulu via closureDatesForType ci-dessus) en
+// un seul ensemble de dates ISO fermées — calculé une fois par plage
+// affichée (mois), jamais par case de calendrier, exactement comme le
+// statut de capacité.
 export function getClosedDatesInRange(
   closedWeekdays: number[],
   closureDates: string[],

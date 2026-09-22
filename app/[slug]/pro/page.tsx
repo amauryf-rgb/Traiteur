@@ -8,11 +8,13 @@ import {
   getOrdersForDate,
   getProductionLotsForDate,
   getStaffForEstablishment,
+  getStaffOrderTypeScope,
   getTasksForStaffMember,
 } from "@/lib/db/queries";
+import type { OrderType } from "@/lib/types";
 import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/lib/tenant";
 import { aggregateByProduct } from "@/lib/aggregate";
-import { getClosedDatesInRange, getMonthBounds, getMonthGrid, getTodayISO, monthOfDate } from "@/lib/slots";
+import { closureDatesForType, getClosedDatesInRange, getMonthBounds, getMonthGrid, getTodayISO, monthOfDate } from "@/lib/slots";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { DayView } from "./DayView";
@@ -30,10 +32,10 @@ export default async function ProDashboardPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ date?: string; view?: string }>;
+  searchParams: Promise<{ date?: string; view?: string; all?: string }>;
 }) {
   const { slug } = await params;
-  const { date: dateParam, view: viewParam } = await searchParams;
+  const { date: dateParam, view: viewParam, all: allParam } = await searchParams;
 
   const establishment = await getEstablishmentBySlug(slug);
   if (!establishment) notFound();
@@ -65,6 +67,13 @@ export default async function ProDashboardPage({
   const accentColor = establishment.accentColor ?? "#1a1a1a";
   const isOwner = session.role === "owner";
 
+  // Rattachement à un univers (traiteur/boutique) via l'entité juridique du
+  // membre connecté — ex. Richard (Boutique Sàrl) ne voit par défaut que les
+  // commandes boutique, Michele que le traiteur. Null pour un établissement
+  // mono-entité (rien à filtrer) ou un membre sans entité renseignée.
+  const scope = await runAsTenant(context, (tx) => getStaffOrderTypeScope(tx, session.staffMemberId));
+  const showAll = scope === null || allParam === "1";
+
   return (
     <ProShell
       slug={slug}
@@ -74,28 +83,41 @@ export default async function ProDashboardPage({
       active="planning"
     >
       <ProPanel>
-        <div className="flex items-center gap-3 px-6 py-2 border-b border-stone-200 text-xs">
-          <Link
-            href={`/${slug}/pro?date=${date}`}
-            className="pb-1"
-            style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
-          >
-            Jour
-          </Link>
-          <Link
-            href={`/${slug}/pro?view=month&date=${date}`}
-            className="pb-1"
-            style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
-          >
-            Mois
-          </Link>
+        <div className="flex items-center justify-between gap-3 px-6 py-2 border-b border-stone-200 text-xs">
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/${slug}/pro?date=${date}${showAll && scope ? "&all=1" : ""}`}
+              className="pb-1"
+              style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+            >
+              Jour
+            </Link>
+            <Link
+              href={`/${slug}/pro?view=month&date=${date}`}
+              className="pb-1"
+              style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+            >
+              Mois
+            </Link>
+          </div>
+
+          {/* Filtre par univers (traiteur/boutique) — seulement pour un membre
+              rattaché à une entité mono-univers (ex. Richard/Boutique,
+              Michele/Traiteur). Toujours possible de repasser en "Voir tout" :
+              on filtre l'affichage par défaut, on ne retire jamais l'accès. */}
+          {view === "day" && scope && (
+            <Link href={`/${slug}/pro?date=${date}${showAll ? "" : "&all=1"}`} className="underline underline-offset-2 text-stone-400 hover:text-stone-600">
+              {showAll ? `Filtrer : ${scope === "traiteur" ? "Traiteur" : "Boutique"} uniquement` : "Voir tout (traiteur + boutique)"}
+            </Link>
+          )}
         </div>
 
         {view === "month" ? (
           <MonthViewSection
             slug={slug}
             establishmentId={establishment.id}
-            closedWeekdays={establishment.closedWeekdays}
+            closedWeekdaysTraiteur={establishment.closedWeekdaysTraiteur}
+            closedWeekdaysBoutique={establishment.closedWeekdaysBoutique}
             date={date}
             today={today}
             context={context}
@@ -109,6 +131,7 @@ export default async function ProDashboardPage({
             today={today}
             context={context}
             accentColor={accentColor}
+            scope={showAll ? null : scope}
           />
         )}
       </ProPanel>
@@ -123,6 +146,7 @@ async function DayViewSection({
   today,
   context,
   accentColor,
+  scope,
 }: {
   slug: string;
   establishmentId: string;
@@ -130,11 +154,16 @@ async function DayViewSection({
   today: string;
   context: TenantContext;
   accentColor: string;
+  scope: OrderType | null;
 }) {
   const isToday = date === today;
 
   const { activeOrders, aggregated, dailyMaxByProduct, lotsByProduct, staff } = await runAsTenant(context, async (tx) => {
-    const dayOrders = await getOrdersForDate(tx, establishmentId, date);
+    const allDayOrders = await getOrdersForDate(tx, establishmentId, date);
+    // Filtre par univers (voir ProDashboardPage) : appliqué ici, en amont de
+    // tout le reste, pour que la liste des commandes ET l'agrégat "à
+    // produire" restent cohérents entre eux sans dupliquer la condition.
+    const dayOrders = scope ? allDayOrders.filter((o) => o.orderType === scope) : allDayOrders;
     const activeOrders = dayOrders.filter((o) => o.status !== "cancelled");
     // Une commande assignée en entier (orders.assignedTo) est exclue de
     // l'agrégat "à produire" : son détail vit dans la colonne Commandes, pas
@@ -178,7 +207,8 @@ async function DayViewSection({
 async function MonthViewSection({
   slug,
   establishmentId,
-  closedWeekdays,
+  closedWeekdaysTraiteur,
+  closedWeekdaysBoutique,
   date,
   today,
   context,
@@ -186,7 +216,8 @@ async function MonthViewSection({
 }: {
   slug: string;
   establishmentId: string;
-  closedWeekdays: number[];
+  closedWeekdaysTraiteur: number[];
+  closedWeekdaysBoutique: number[];
   date: string;
   today: string;
   context: TenantContext;
@@ -202,7 +233,13 @@ async function MonthViewSection({
     return { counts, closureRows };
   });
   const countByDate = new Map(counts.map((c) => [c.date, c.count]));
-  const closedDates = getClosedDatesInRange(closedWeekdays, closureRows.map((c) => c.date), start, end);
+  // Vue mensuelle non filtrée par univers (contrairement au planning du
+  // jour) : un jour n'est marqué "fermé" que s'il l'est pour les DEUX
+  // univers à la fois — sinon des commandes restent possibles ce jour-là,
+  // "fermé" serait trompeur pour le propriétaire qui regarde l'ensemble.
+  const closedTraiteur = getClosedDatesInRange(closedWeekdaysTraiteur, closureDatesForType(closureRows, "traiteur"), start, end);
+  const closedBoutique = getClosedDatesInRange(closedWeekdaysBoutique, closureDatesForType(closureRows, "boutique"), start, end);
+  const closedDates = new Set([...closedTraiteur].filter((d) => closedBoutique.has(d)));
 
   return (
     <MonthView
