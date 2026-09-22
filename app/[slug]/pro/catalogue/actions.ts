@@ -3,10 +3,51 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { categories, productAllergens, productCapacityRules, products } from "@/lib/db/schema";
 import { requireStaffTenantContext, runAsTenant, type Tx, type TenantContext } from "@/lib/tenant";
+import { getProductPhotoStore, productPhotoKeyFromUrl, PRODUCT_PHOTO_ROUTE_PREFIX } from "@/lib/blobs";
 
 export type ProductFormState = { error?: string };
+
+const ALLOWED_PHOTO_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+// Remplace la photo existante d'un produit : upload la nouvelle (si fournie),
+// supprime l'ancienne du store si elle provient de ce même mécanisme (pas de
+// fuite de blobs orphelins), et retourne la nouvelle URL à stocker en base.
+// `null` = pas de changement (garder la photo actuelle) ; `""` = suppression demandée.
+async function resolvePhotoUrl(formData: FormData, currentPhotoUrl: string | null): Promise<{ url: string | null } | { error: string }> {
+  const removeRequested = formData.get("removePhoto") === "on";
+  const photo = formData.get("photo");
+  const hasNewFile = photo instanceof File && photo.size > 0;
+
+  if (!hasNewFile && !removeRequested) {
+    return { url: currentPhotoUrl };
+  }
+
+  const store = getProductPhotoStore();
+  const oldKey = productPhotoKeyFromUrl(currentPhotoUrl);
+
+  if (hasNewFile) {
+    const file = photo as File;
+    const extension = ALLOWED_PHOTO_TYPES[file.type];
+    if (!extension) return { error: "Format de photo non supporté (JPEG, PNG ou WebP uniquement)." };
+    if (file.size > MAX_PHOTO_BYTES) return { error: "Photo trop volumineuse (5 Mo maximum)." };
+
+    const key = `${randomUUID()}.${extension}`;
+    await store.set(key, await file.arrayBuffer(), { metadata: { contentType: file.type } });
+    if (oldKey) await store.delete(oldKey);
+    return { url: `${PRODUCT_PHOTO_ROUTE_PREFIX}${key}` };
+  }
+
+  if (oldKey) await store.delete(oldKey);
+  return { url: null };
+}
 
 async function requireManager(slug: string): Promise<{ establishmentId: string; context: TenantContext }> {
   const staffTenant = await requireStaffTenantContext();
@@ -81,21 +122,30 @@ export async function saveProduct(
   const result = await runAsTenant(context, async (tx) => {
     const categoryId = await resolveCategoryId(tx, establishmentId, String(formData.get("categoryName") ?? ""));
 
+    let id = productId;
+    let currentPhotoUrl: string | null = null;
+    if (id) {
+      const [existing] = await tx.select().from(products).where(and(eq(products.id, id), eq(products.establishmentId, establishmentId)));
+      if (!existing) return { error: "Produit introuvable." } as ProductFormState;
+      currentPhotoUrl = existing.photoUrl;
+    }
+
+    const photoResult = await resolvePhotoUrl(formData, currentPhotoUrl);
+    if ("error" in photoResult) return { error: photoResult.error } as ProductFormState;
+
     const values = {
       name,
       priceAmount: price.toFixed(2),
       description,
       sectionTitle,
+      photoUrl: photoResult.url,
       categoryId,
       isActive,
       availableBoutique,
       availableTraiteur,
     };
 
-    let id = productId;
     if (id) {
-      const [existing] = await tx.select().from(products).where(and(eq(products.id, id), eq(products.establishmentId, establishmentId)));
-      if (!existing) return { error: "Produit introuvable." } as ProductFormState;
       await tx.update(products).set({ ...values, updatedAt: new Date() }).where(eq(products.id, id));
     } else {
       const [created] = await tx

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button, buttonClassName } from "@/components/ui/Button";
 import { saveProduct, type ProductFormState } from "./actions";
 import type { ManagedProduct } from "@/lib/db/queries";
@@ -21,9 +21,53 @@ export function ProductForm({
 }) {
   const action = saveProduct.bind(null, slug, product?.id ?? null);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(product?.photoUrl ?? null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   return (
     <form action={formAction} className="flex flex-col gap-4 px-6 py-6">
+      <div>
+        <label className="block text-xs text-stone-400 mb-1">Photo du produit</label>
+        <div className="flex items-center gap-4">
+          {photoPreview && !removePhoto ? (
+            <img src={photoPreview} alt="" className="w-20 h-20 rounded-lg object-cover border border-stone-200" />
+          ) : (
+            <div className="w-20 h-20 rounded-lg border border-dashed border-stone-300 flex items-center justify-center text-stone-300 text-xs">
+              Aucune
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <input
+              name="photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setPhotoPreview(URL.createObjectURL(file));
+                  setRemovePhoto(false);
+                }
+              }}
+              className="text-xs text-stone-500"
+            />
+            {product?.photoUrl && (
+              <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                <input
+                  type="checkbox"
+                  name="removePhoto"
+                  checked={removePhoto}
+                  onChange={(e) => {
+                    setRemovePhoto(e.target.checked);
+                    if (e.target.checked) setPhotoPreview(null);
+                  }}
+                />
+                Supprimer la photo actuelle
+              </label>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div>
         <label className="block text-xs text-stone-400 mb-1">Nom du produit</label>
         <input
