@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { db } from "./index";
 import type { Tx } from "../tenant";
@@ -28,10 +29,18 @@ import type { OrderType } from "../types";
 // résoudre un slug en establishment_id avant même de connaître un tenant
 // courant). Utilisée pour amorcer le contexte, jamais pour lire des
 // données protégées.
-export async function getEstablishmentBySlug(slug: string) {
+//
+// React.cache() : dédoublonne les appels avec le même slug au sein d'une
+// même passe de rendu (une requête) — Drizzle n'est pas du fetch(), donc
+// pas de mémoïsation automatique comme documentée dans le guide caching de
+// Next.js. Plusieurs endroits du rendu d'une même page (ex. getPublicTenantContext
+// et getClientTenantContext sur le catalogue client) appellent cette fonction avec
+// le même slug ; sans ce cache, chacun déclenchait un aller-retour base
+// séparé pour la même ligne.
+export const getEstablishmentBySlug = cache(async (slug: string) => {
   const [establishment] = await db.select().from(establishments).where(eq(establishments.slug, slug));
   return establishment ?? null;
-}
+});
 
 // platform_admins n'a lui non plus aucune policy RLS (schema.sql, section
 // 12) : c'est cette table qui détermine qui a le droit de tout voir, elle
