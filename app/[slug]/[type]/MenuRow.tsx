@@ -11,7 +11,7 @@ import type { CatalogueProduct } from "@/lib/db/queries";
 // pointillée jusqu'au prix en serif italique couleur d'accent, description
 // courte en italique sans-serif en dessous. Pas de photo visible par défaut.
 // - Souris/trackpad (hover: hover + pointer: fine) : survol → photo en
-//   tooltip flottant à droite de la ligne, hors flux, fondu ~150ms,
+//   tooltip flottant à gauche de la ligne, hors flux, fondu ~150ms,
 //   purement visuel. La ligne n'est pas cliquable pour ouvrir quoi que ce
 //   soit ; l'ajout au panier reste possible en permanence via le contrôle
 //   +/- affiché en bout de ligne, indépendant du survol.
@@ -99,7 +99,7 @@ export function MenuRow({
 
       {product.photoUrl && canHover && (
         <div
-          className="pointer-events-none absolute left-full top-0 ml-4 w-36 h-36 z-20 transition-opacity duration-150 rounded-lg overflow-hidden shadow-lg border border-stone-200 bg-white"
+          className="pointer-events-none absolute right-full top-0 mr-4 w-36 h-36 z-20 transition-opacity duration-150 rounded-lg overflow-hidden shadow-lg border border-stone-200 bg-white"
           style={{ opacity: hovered ? 1 : 0 }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
