@@ -7,14 +7,16 @@ import { useCanHover } from "@/lib/useCanHover";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
 // Format "menu de restaurant" : une ligne par produit (nom, description,
-// prix), sans photo ni contrôle de quantité visibles par défaut.
+// prix), sans photo visible par défaut.
 // - Souris/trackpad (hover: hover + pointer: fine) : survol → photo en
-//   tooltip flottant à droite de la ligne, hors flux, fondu ~150ms ;
-//   aucun ajout au panier depuis le survol, uniquement visuel.
+//   tooltip flottant à droite de la ligne, hors flux, fondu ~150ms,
+//   purement visuel. La ligne n'est pas cliquable pour ouvrir quoi que ce
+//   soit ; l'ajout au panier reste possible en permanence via le contrôle
+//   +/- affiché en bout de ligne, indépendant du survol.
 // - Tactile (et tout appareil sans survol précis, même un grand écran) :
-//   tap → accordéon sous la ligne avec photo + contrôle d'ajout dédié.
-// Le tap/clic sur la ligne n'ajoute jamais directement au panier — seul le
-// contrôle du panneau déplié le fait (évite les ajouts accidentels).
+//   tap sur la ligne → accordéon avec photo + contrôle d'ajout dédié.
+//   Le tap sur la ligne n'ajoute jamais directement au panier — seul le
+//   contrôle du panneau déplié le fait (évite les ajouts accidentels).
 export function MenuRow({
   product,
   quantity,
@@ -32,33 +34,88 @@ export function MenuRow({
 }) {
   const canHover = useCanHover();
   const [hovered, setHovered] = useState(false);
-  const showTooltip = canHover && hovered && !isOpen;
+
+  const rowContent = (
+    <>
+      <span className="min-w-0">
+        <span className="font-serif text-base">{product.name}</span>
+        {product.description && <span className="block text-sm text-stone-500 mt-0.5">{product.description}</span>}
+        {product.allergens.length > 0 && (
+          <span className="block text-xs text-stone-400 mt-0.5">Contient {product.allergens.join(", ").toLowerCase()}</span>
+        )}
+      </span>
+      <span className="flex items-center gap-3 shrink-0">
+        <span className="text-sm font-medium whitespace-nowrap">{formatCHF(Number(product.priceAmount))}</span>
+        {canHover &&
+          (quantity === 0 ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdateQuantity(1);
+              }}
+              className="w-7 h-7 rounded-full border flex items-center justify-center"
+              style={{ borderColor: accentColor, color: accentColor }}
+              aria-label={`Ajouter un ${product.name}`}
+            >
+              +
+            </button>
+          ) : (
+            <span className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateQuantity(quantity - 1);
+                }}
+                className="w-7 h-7 rounded-full border border-stone-300 text-stone-500 flex items-center justify-center"
+                aria-label={`Retirer un ${product.name}`}
+              >
+                −
+              </button>
+              <span className="w-4 text-center text-sm">{quantity}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateQuantity(quantity + 1);
+                }}
+                className="w-7 h-7 rounded-full border flex items-center justify-center"
+                style={{ borderColor: accentColor, color: accentColor }}
+                aria-label={`Ajouter un ${product.name}`}
+              >
+                +
+              </button>
+            </span>
+          ))}
+      </span>
+    </>
+  );
 
   return (
     <div className="relative border-b border-stone-100 last:border-b-0">
-      <button
-        type="button"
-        onClick={onToggleOpen}
-        onMouseEnter={canHover ? () => setHovered(true) : undefined}
-        onMouseLeave={canHover ? () => setHovered(false) : undefined}
-        aria-expanded={isOpen}
-        className="w-full text-left px-6 py-3 flex items-start justify-between gap-4 transition-colors"
-        style={{ backgroundColor: hovered || isOpen ? "#fafaf9" : "transparent" }}
-      >
-        <span className="min-w-0">
-          <span className="font-serif text-base">{product.name}</span>
-          {product.description && <span className="block text-sm text-stone-500 mt-0.5">{product.description}</span>}
-          {product.allergens.length > 0 && (
-            <span className="block text-xs text-stone-400 mt-0.5">Contient {product.allergens.join(", ").toLowerCase()}</span>
-          )}
-        </span>
-        <span className="text-sm font-medium whitespace-nowrap shrink-0">{formatCHF(Number(product.priceAmount))}</span>
-      </button>
+      {canHover ? (
+        <div
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          className="w-full text-left px-6 py-3 flex items-start justify-between gap-4 transition-colors"
+          style={{ backgroundColor: hovered ? "#fafaf9" : "transparent" }}
+        >
+          {rowContent}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          aria-expanded={isOpen}
+          className="w-full text-left px-6 py-3 flex items-start justify-between gap-4 transition-colors"
+          style={{ backgroundColor: isOpen ? "#fafaf9" : "transparent" }}
+        >
+          {rowContent}
+        </button>
+      )}
 
       {product.photoUrl && canHover && (
         <div
           className="pointer-events-none absolute left-full top-3 ml-3 w-40 z-20 transition-opacity duration-150"
-          style={{ opacity: showTooltip ? 1 : 0 }}
+          style={{ opacity: hovered ? 1 : 0 }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -69,7 +126,7 @@ export function MenuRow({
         </div>
       )}
 
-      {isOpen && (
+      {!canHover && isOpen && (
         <div className="px-6 pb-4 flex items-center gap-4">
           {product.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

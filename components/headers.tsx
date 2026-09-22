@@ -60,6 +60,17 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle?: stri
   );
 }
 
+// Fond stone-50 + largeur élargie sur desktop (lg:) : même langage
+// graphique que ProShell (dashboard pro) et CatalogueClient, pour que les
+// écrans simples (accueil, fermeture, connexion, récap...) ne se retrouvent
+// plus en petite carte perdue au milieu d'un grand écran. Sur mobile,
+// max-w-md dépasse déjà la largeur de l'écran donc rien ne change visuellement.
 export function ScreenCard({ children }: { children: React.ReactNode }) {
-  return <main className="max-w-md mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">{children}</main>;
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <main className="max-w-md lg:max-w-2xl mx-auto my-10 border border-stone-200 rounded-xl overflow-hidden bg-white">
+        {children}
+      </main>
+    </div>
+  );
 }
