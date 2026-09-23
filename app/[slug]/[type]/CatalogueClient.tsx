@@ -15,6 +15,20 @@ import type { OrderType } from "@/lib/types";
 
 type Establishment = { name: string; tagline: string | null; accentColor: string | null; logoUrl?: string | null };
 
+// appearance-none neutralise la flèche native sur tous les navigateurs (pas
+// seulement Safari — Chrome/Firefox n'avaient simplement jamais eu de style
+// personnalisé non plus, juste une flèche native qui passait plus inaperçue).
+// Chevron ré-ajouté à la main en arrière-plan plutôt qu'en classe Tailwind
+// arbitraire, pour éviter les soucis d'échappement de guillemets d'une data
+// URI dans une className.
+const SELECT_CLASS_NAME = "appearance-none bg-transparent bg-no-repeat text-sm outline-none w-full pr-5";
+const SELECT_ARROW_STYLE = {
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23a8a29e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")",
+  backgroundPosition: "right center",
+  backgroundSize: "12px",
+};
+
 const EYEBROW: Record<OrderType, string> = {
   boutique: "Boutique du jour",
   traiteur: "Commande traiteur",
@@ -153,7 +167,8 @@ export function CatalogueClient({
         <label className="block px-6 py-3 border-b border-stone-200 text-left">
           <span className="block text-xs text-stone-400">Heure</span>
           <select
-            className="text-sm bg-transparent outline-none w-full"
+            className={SELECT_CLASS_NAME}
+            style={SELECT_ARROW_STYLE}
             value={selectedTime}
             onChange={(e) => setSelectedTime(e.target.value)}
           >
@@ -173,7 +188,8 @@ export function CatalogueClient({
             <span className="text-sm">Aujourd&apos;hui</span>
           ) : (
             <select
-              className="text-sm bg-transparent outline-none w-full"
+              className={SELECT_CLASS_NAME}
+              style={SELECT_ARROW_STYLE}
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
             >
@@ -188,7 +204,8 @@ export function CatalogueClient({
         <label className="px-4 py-3 text-left">
           <span className="block text-xs text-stone-400">Heure</span>
           <select
-            className="text-sm bg-transparent outline-none w-full"
+            className={SELECT_CLASS_NAME}
+            style={SELECT_ARROW_STYLE}
             value={selectedTime}
             onChange={(e) => setSelectedTime(e.target.value)}
           >

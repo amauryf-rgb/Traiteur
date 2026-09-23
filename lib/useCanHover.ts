@@ -19,6 +19,19 @@ function ensureInit() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
 
+  // Zéro point de contact tactile : ne peut arriver que sur un appareil
+  // sans écran tactile (Mac de bureau/portable) — signal fiable et
+  // surtout SYNCHRONE, contrairement à matchMedia(hover) ci-dessous, qui
+  // peut se tromper sur Safari sans qu'aucun mouvement de souris n'ait
+  // encore eu lieu (voir le filet de sécurité pointermove plus bas). Sans
+  // ce court-circuit, un Mac où matchMedia répond mal affichait le mode
+  // tactile (bouton "+" invisible tant que la souris n'avait pas bougé au
+  // moins une fois) dès le premier rendu, pas seulement au survol.
+  if (navigator.maxTouchPoints === 0) {
+    cached = true;
+    return;
+  }
+
   const mql = window.matchMedia(QUERY);
   cached = mql.matches;
   mql.addEventListener("change", (e) => {
