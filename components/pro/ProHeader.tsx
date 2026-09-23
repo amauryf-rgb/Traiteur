@@ -2,13 +2,14 @@ import Link from "next/link";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/[slug]/pro/actions";
 
-export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "equipe" | "fermetures";
+export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "equipe" | "fermetures";
 
 const NAV_ITEMS: { key: ProNavKey; href: string; label: string; ownerOnly?: boolean }[] = [
   { key: "planning", href: "", label: "Planning" },
   { key: "comptoir", href: "/comptoir", label: "Comptoir" },
   { key: "catalogue", href: "/catalogue", label: "Catalogue" },
   { key: "facturation", href: "/facturation", label: "Facturation", ownerOnly: true },
+  { key: "dossier", href: "/dossier", label: "Dossier", ownerOnly: true },
   { key: "equipe", href: "/equipe", label: "Équipe", ownerOnly: true },
   { key: "fermetures", href: "/fermetures", label: "Fermetures", ownerOnly: true },
 ];

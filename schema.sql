@@ -370,6 +370,53 @@ CREATE TABLE inter_entity_invoice_lines (
 
 
 -- ---------------------------------------------------------------------
+-- 8bis. FACTURATION CLIENT
+-- ---------------------------------------------------------------------
+-- Distincte de la facturation inter-entités ci-dessus (entre les sociétés
+-- d'un même établissement) : ici, le document qu'un CLIENT reçoit pour sa
+-- commande. Générée à la volée au premier accès (voir getOrCreateClientInvoice
+-- dans lib/invoicing.ts), jamais avant — même patron de numérotation
+-- séquentielle que inter_entity_invoices ("C-{année}-{0001}" plutôt que "F-").
+
+CREATE TABLE client_invoices (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    order_id            UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    -- Copié depuis orders.selling_entity_id au moment de la génération : sert
+    -- directement au cloisonnement Richard/boutique, Michele/traiteur, sans
+    -- avoir à rejoindre orders à chaque lecture.
+    selling_entity_id   UUID NOT NULL REFERENCES legal_entities(id),
+    invoice_number      TEXT NOT NULL,
+    email_sent_at       TIMESTAMPTZ,                          -- NULL si l'envoi a échoué ou n'a pas eu lieu
+    generated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (order_id),
+    UNIQUE (establishment_id, invoice_number)
+);
+
+-- ---------------------------------------------------------------------
+-- 8ter. FACTURES D'ACHAT (dépenses fournisseurs)
+-- ---------------------------------------------------------------------
+-- N'existait sous aucune forme avant ce chantier. Rattachées à une entité
+-- juridique (pas seulement à l'établissement) pour le même cloisonnement que
+-- les factures clients, et pour entrer dans le calcul du résultat
+-- (CA - dépenses) par entité du rapport comptable.
+
+CREATE TABLE purchase_invoices (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    legal_entity_id     UUID NOT NULL REFERENCES legal_entities(id),
+    supplier_name       TEXT NOT NULL,
+    invoice_date        DATE NOT NULL,
+    amount              NUMERIC(10,2) NOT NULL,
+    description         TEXT,
+    -- Même mécanisme Netlify Blobs que products.photo_url (lib/blobs.ts,
+    -- getPurchaseInvoiceScanStore) — jamais un nouveau système de stockage.
+    scan_url            TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- ---------------------------------------------------------------------
 -- 9. POLITIQUE D'ANNULATION (écran 16)
 -- ---------------------------------------------------------------------
 
@@ -541,6 +588,20 @@ CREATE POLICY cancellation_policies_tenant_isolation ON cancellation_policies
         OR establishment_id::text = current_setting('app.current_establishment_id', true)
     );
 
+ALTER TABLE client_invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY client_invoices_tenant_isolation ON client_invoices
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
+ALTER TABLE purchase_invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY purchase_invoices_tenant_isolation ON purchase_invoices
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY notifications_tenant_isolation ON notifications
     USING (
@@ -569,6 +630,8 @@ ALTER TABLE inter_entity_invoices FORCE ROW LEVEL SECURITY;
 ALTER TABLE cancellation_policies FORCE ROW LEVEL SECURITY;
 ALTER TABLE establishment_closures FORCE ROW LEVEL SECURITY;
 ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+ALTER TABLE client_invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE purchase_invoices FORCE ROW LEVEL SECURITY;
 
 -- Tables sans establishment_id direct : RLS ne traverse pas les jointures
 -- tout seul, donc chacune a sa propre policy vérifiant l'appartenance via

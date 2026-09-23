@@ -14,7 +14,34 @@ import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
 import { closureDatesForType, getClosedDatesInRange, getMonthBounds } from "@/lib/slots";
+import { getOrCreateClientInvoice, type ClientInvoiceBundle } from "@/lib/invoicing";
+import { renderToBuffer } from "@react-pdf/renderer";
+import { ClientInvoiceDocument } from "@/lib/pdf/ClientInvoiceDocument";
+import { sendEmail, isValidEmail } from "@/lib/email";
 import type { CartLine, OrderType } from "@/lib/types";
+
+// Best-effort, jamais dans la transaction de création de commande : un envoi
+// qui échoue (Resend en panne, clé manquante) ne doit jamais faire échouer
+// ni annuler une commande déjà confirmée et payée. La facture (client_invoices)
+// est, elle, créée dans la même transaction que la commande — voir plus bas.
+async function sendClientInvoiceEmail(bundle: ClientInvoiceBundle, establishmentName: string) {
+  const email = bundle.order.clientContact;
+  if (!email || !isValidEmail(email)) return;
+
+  try {
+    const buffer = await renderToBuffer(
+      ClientInvoiceDocument({ invoice: bundle.invoice, order: bundle.order, items: bundle.items, sellingEntity: bundle.sellingEntity, establishmentName })
+    );
+    await sendEmail({
+      to: email,
+      subject: `Votre facture ${bundle.invoice.invoiceNumber} — ${establishmentName}`,
+      html: `<p>Bonjour ${bundle.order.clientName},</p><p>Merci pour votre commande chez ${establishmentName}. Vous trouverez votre facture en pièce jointe.</p>`,
+      attachments: [{ filename: `${bundle.invoice.invoiceNumber}.pdf`, content: Buffer.from(buffer) }],
+    });
+  } catch (err) {
+    console.error("sendClientInvoiceEmail: échec", err);
+  }
+}
 
 // Statut de capacité par jour pour le calendrier client du tunnel traiteur —
 // productIds vient du panier (état client, localStorage), donc fourni par
@@ -183,6 +210,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
   const orderType = input.orderType;
 
   let orderId: string;
+  let invoiceBundle: ClientInvoiceBundle | null = null;
   try {
     orderId = await runAsTenant(context, async (tx) => {
       const legalEntity = await getSellingEntity(tx, establishment.id, orderType);
@@ -265,6 +293,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
         status: "succeeded",
       });
 
+      // Générée dans la même transaction que la commande (bon marché, un
+      // simple insert numéroté) — jamais l'envoi de l'email, qui lui attend
+      // le commit (voir sendClientInvoiceEmail, appelé après ce bloc).
+      invoiceBundle = await getOrCreateClientInvoice(tx, order.id);
+
       return order.id;
     });
   } catch (err) {
@@ -281,6 +314,10 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       return { ok: false, error: "Un ou plusieurs produits ne sont plus disponibles." };
     }
     throw err;
+  }
+
+  if (invoiceBundle) {
+    await sendClientInvoiceEmail(invoiceBundle, establishment.name);
   }
 
   redirect(`/${input.slug}/${orderType}/confirmation/${orderId}`);

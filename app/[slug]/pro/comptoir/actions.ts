@@ -8,6 +8,7 @@ import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { confirmReservations, holdCapacity } from "@/lib/capacity";
 import { createSimulatedPayment } from "@/lib/payments/simulate";
 import { getCurrentTimeISO, getTodayISO } from "@/lib/slots";
+import { getOrCreateClientInvoice } from "@/lib/invoicing";
 
 export type ComptoirItem = { productId: string; quantity: number };
 export type CheckoutResult = { ok: true; orderId: string } | { ok: false; error: string };
@@ -106,6 +107,14 @@ export async function checkoutComptoir(slug: string, items: ComptoirItem[], clie
         externalPaymentId: payment.externalPaymentId,
         status: "succeeded",
       });
+
+      // Pas de clientContact pour une vente comptoir (jamais demandé au
+      // client sur place) : la facture est quand même générée, pour le
+      // dossier des commandes et le rapport comptable, mais jamais
+      // e-mailée (getOrCreateClientInvoice ne s'occupe que du numéro ;
+      // l'e-mail, propre au tunnel de commande en ligne, n'est pas
+      // appelé ici — voir sendClientInvoiceEmail dans app/[slug]/[type]/actions.ts).
+      await getOrCreateClientInvoice(tx, order.id);
 
       return order.id;
     });

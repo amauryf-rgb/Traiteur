@@ -14,3 +14,11 @@ export function productPhotoKeyFromUrl(url: string | null): string | null {
   if (!url || !url.startsWith(PRODUCT_PHOTO_ROUTE_PREFIX)) return null;
   return url.slice(PRODUCT_PHOTO_ROUTE_PREFIX.length);
 }
+
+// Même mécanisme, store séparé — scans de factures d'achat (photo ou PDF,
+// contrairement à une photo produit qui n'est jamais un PDF).
+export function getPurchaseInvoiceScanStore() {
+  return getStore({ name: "purchase-invoice-scans", consistency: "strong" });
+}
+
+export const PURCHASE_INVOICE_SCAN_ROUTE_PREFIX = "/api/purchase-invoice-scan/";

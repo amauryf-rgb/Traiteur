@@ -417,6 +417,58 @@ export const interEntityInvoiceLines = pgTable("inter_entity_invoice_lines", {
 ]).enableRLS();
 
 // ---------------------------------------------------------------------
+// 8bis. Facturation client — distincte de la facturation inter-entités
+// ci-dessus (entre les sociétés d'un même établissement) : ici, le document
+// qu'un client reçoit pour SA commande. Générée à la volée au premier accès
+// (voir getOrCreateClientInvoice dans lib/invoicing.ts), jamais avant —
+// même patron de numérotation séquentielle que inter_entity_invoices, préfixe
+// "C" plutôt que "F" pour ne jamais collisionner visuellement.
+// ---------------------------------------------------------------------
+
+export const clientInvoices = pgTable("client_invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  // Copié depuis orders.sellingEntityId au moment de la génération — c'est
+  // cette valeur (pas une jointure vers orders à chaque lecture) qui sert au
+  // cloisonnement Richard/boutique, Michele/traiteur (voir requireEntityScope
+  // dans app/[slug]/pro/dossier/actions.ts).
+  sellingEntityId: uuid("selling_entity_id").notNull().references(() => legalEntities.id),
+  invoiceNumber: text("invoice_number").notNull(),
+  emailSentAt: timestamp("email_sent_at", { withTimezone: true }),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("client_invoices_order_unique").on(t.orderId),
+  uniqueIndex("client_invoices_number_unique").on(t.establishmentId, t.invoiceNumber),
+  tenantIsolationPolicy("client_invoices_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
+// ---------------------------------------------------------------------
+// 8ter. Factures d'achat (dépenses fournisseurs)
+// ---------------------------------------------------------------------
+// N'existait sous aucune forme avant ce chantier — rattachées à une entité
+// juridique (pas seulement à l'établissement) pour le même cloisonnement
+// Richard/boutique, Michele/traiteur que les factures clients, et pour
+// entrer dans le calcul du résultat (CA - dépenses) par entité du rapport
+// comptable.
+
+export const purchaseInvoices = pgTable("purchase_invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  legalEntityId: uuid("legal_entity_id").notNull().references(() => legalEntities.id),
+  supplierName: text("supplier_name").notNull(),
+  invoiceDate: date("invoice_date").notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  description: text("description"),
+  // Même mécanisme Netlify Blobs que products.photo_url — voir lib/blobs.ts
+  // (getPurchaseInvoiceScanStore) — jamais un nouveau système de stockage.
+  scanUrl: text("scan_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  tenantIsolationPolicy("purchase_invoices_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
+// ---------------------------------------------------------------------
 // 9. Politique d'annulation
 // ---------------------------------------------------------------------
 

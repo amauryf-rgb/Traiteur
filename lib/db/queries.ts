@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { db } from "./index";
 import type { Tx } from "../tenant";
 import {
@@ -12,6 +12,7 @@ import {
   interEntityInvoiceLines,
   interEntityInvoices,
   legalEntities,
+  clientInvoices,
   orderItems,
   orders,
   paymentAccounts,
@@ -20,6 +21,7 @@ import {
   productCapacityRules,
   productionLots,
   products,
+  purchaseInvoices,
   staffMembers,
 } from "./schema";
 import type { OrderType } from "../types";
@@ -692,4 +694,153 @@ export async function getInterEntityInvoiceDetail(tx: Tx, invoiceId: string) {
   if (!fromEntity || !toEntity) return null;
 
   return { invoice, lines, fromEntity, toEntity };
+}
+
+// ---------------------------------------------------------------------
+// Dossier des commandes, factures d'achat, rapport comptable
+// ---------------------------------------------------------------------
+// Cloisonnement Richard/boutique, Michele/traiteur : partout ci-dessous,
+// allowedEntityId vient de staff_members.legal_entity_id (jamais recalculé
+// depuis un rôle ou une session côté client) — voir requireOwnerScope dans
+// app/[slug]/pro/dossier/actions.ts. Un établissement mono-entité a un
+// allowedEntityId qui pointe vers sa seule entité : filtrer dessus ne
+// restreint rien dans ce cas (toutes les lignes lui appartiennent déjà).
+
+export async function getStaffLegalEntityId(tx: Tx, staffMemberId: string): Promise<string | null> {
+  const [row] = await tx.select({ legalEntityId: staffMembers.legalEntityId }).from(staffMembers).where(eq(staffMembers.id, staffMemberId));
+  return row?.legalEntityId ?? null;
+}
+
+export type OrderArchiveFilters = {
+  establishmentId: string;
+  dateFrom: string;
+  dateTo: string;
+  clientName?: string;
+  entityId?: string | null;
+  allowedEntityId: string | null;
+};
+
+export type OrderArchiveRow = {
+  id: string;
+  orderType: string;
+  clientName: string;
+  pickupDate: string;
+  totalAmount: string;
+  paymentStatus: string;
+  sellingEntityId: string;
+  invoiceNumber: string | null;
+};
+
+export async function getOrdersArchive(tx: Tx, filters: OrderArchiveFilters): Promise<OrderArchiveRow[]> {
+  const entityFilter = filters.allowedEntityId ?? filters.entityId;
+
+  const rows = await tx
+    .select({
+      id: orders.id,
+      orderType: orders.orderType,
+      clientName: orders.clientName,
+      pickupDate: orders.pickupDate,
+      totalAmount: orders.totalAmount,
+      paymentStatus: orders.paymentStatus,
+      sellingEntityId: orders.sellingEntityId,
+      invoiceNumber: clientInvoices.invoiceNumber,
+    })
+    .from(orders)
+    .leftJoin(clientInvoices, eq(clientInvoices.orderId, orders.id))
+    .where(
+      and(
+        eq(orders.establishmentId, filters.establishmentId),
+        gte(orders.pickupDate, filters.dateFrom),
+        lte(orders.pickupDate, filters.dateTo),
+        ne(orders.status, "cancelled"),
+        filters.clientName ? ilike(orders.clientName, `%${filters.clientName}%`) : undefined,
+        entityFilter ? eq(orders.sellingEntityId, entityFilter) : undefined
+      )
+    )
+    .orderBy(desc(orders.pickupDate));
+
+  return rows;
+}
+
+export type PurchaseInvoiceFilters = {
+  establishmentId: string;
+  dateFrom?: string;
+  dateTo?: string;
+  allowedEntityId: string | null;
+};
+
+export async function getPurchaseInvoices(tx: Tx, filters: PurchaseInvoiceFilters) {
+  return tx
+    .select()
+    .from(purchaseInvoices)
+    .where(
+      and(
+        eq(purchaseInvoices.establishmentId, filters.establishmentId),
+        filters.dateFrom ? gte(purchaseInvoices.invoiceDate, filters.dateFrom) : undefined,
+        filters.dateTo ? lte(purchaseInvoices.invoiceDate, filters.dateTo) : undefined,
+        filters.allowedEntityId ? eq(purchaseInvoices.legalEntityId, filters.allowedEntityId) : undefined
+      )
+    )
+    .orderBy(desc(purchaseInvoices.invoiceDate));
+}
+
+export type AccountingReportData = {
+  periodStart: string;
+  periodEnd: string;
+  revenueByEntity: { entityId: string; entityName: string; revenue: string; orderCount: number }[];
+  totalRevenue: string;
+  invoices: OrderArchiveRow[];
+  purchases: (typeof purchaseInvoices.$inferSelect)[];
+  totalPurchases: string;
+};
+
+// Une seule requête par bloc, réutilisée à la fois pour le PDF de synthèse
+// et les deux CSV de détail — jamais recalculée séparément pour chaque
+// format (voir les routes PDF/CSV dans app/[slug]/pro/dossier/rapport/).
+export async function getAccountingReportData(
+  tx: Tx,
+  params: { establishmentId: string; periodStart: string; periodEnd: string; allowedEntityId: string | null }
+): Promise<AccountingReportData> {
+  const entities = await tx.select().from(legalEntities).where(eq(legalEntities.establishmentId, params.establishmentId));
+  const entityNameById = new Map(entities.map((e) => [e.id, e.name]));
+
+  const invoices = await getOrdersArchive(tx, {
+    establishmentId: params.establishmentId,
+    dateFrom: params.periodStart,
+    dateTo: params.periodEnd,
+    allowedEntityId: params.allowedEntityId,
+  });
+
+  const revenueByEntityMap = new Map<string, { revenue: number; orderCount: number }>();
+  for (const row of invoices) {
+    const current = revenueByEntityMap.get(row.sellingEntityId) ?? { revenue: 0, orderCount: 0 };
+    current.revenue += Number(row.totalAmount);
+    current.orderCount += 1;
+    revenueByEntityMap.set(row.sellingEntityId, current);
+  }
+  const revenueByEntity = [...revenueByEntityMap.entries()].map(([entityId, v]) => ({
+    entityId,
+    entityName: entityNameById.get(entityId) ?? "Entité inconnue",
+    revenue: v.revenue.toFixed(2),
+    orderCount: v.orderCount,
+  }));
+  const totalRevenue = invoices.reduce((sum, row) => sum + Number(row.totalAmount), 0).toFixed(2);
+
+  const purchases = await getPurchaseInvoices(tx, {
+    establishmentId: params.establishmentId,
+    dateFrom: params.periodStart,
+    dateTo: params.periodEnd,
+    allowedEntityId: params.allowedEntityId,
+  });
+  const totalPurchases = purchases.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(2);
+
+  return {
+    periodStart: params.periodStart,
+    periodEnd: params.periodEnd,
+    revenueByEntity,
+    totalRevenue,
+    invoices,
+    purchases,
+    totalPurchases,
+  };
 }
