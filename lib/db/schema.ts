@@ -189,6 +189,11 @@ export const platformAdmins = pgTable("platform_admins", {
   // une seule fois via /admin/setup, jamais par un formulaire d'inscription
   // ouvert (voir cette page pour la garde "une seule création possible").
   passwordHash: text("password_hash").notNull(),
+  // Flux "mot de passe oublié" (app/admin/forgot-password) : seul le hash du
+  // jeton est stocké (SHA-256, voir lib/auth.ts) — jamais le jeton en clair,
+  // qui ne transite que dans l'email envoyé. NULL une fois utilisé ou expiré.
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

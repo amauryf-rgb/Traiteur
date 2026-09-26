@@ -7,7 +7,7 @@ import { LoginForm } from "./LoginForm";
 // donc même besoin explicite pour ne jamais figer cette page au build.
 export const dynamic = "force-dynamic";
 
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const session = await getPlatformAdminSession();
   if (session) redirect("/admin");
 
@@ -15,5 +15,6 @@ export default async function AdminLoginPage() {
   const existing = await getPlatformAdminCount();
   if (existing === 0) redirect("/admin/setup");
 
-  return <LoginForm />;
+  const { reset } = await searchParams;
+  return <LoginForm justReset={reset === "success"} />;
 }

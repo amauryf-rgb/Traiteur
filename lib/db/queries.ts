@@ -58,6 +58,25 @@ export async function getPlatformAdminByEmail(email: string) {
   return admin ?? null;
 }
 
+export async function setPlatformAdminPasswordResetToken(id: string, tokenHash: string, expiresAt: Date) {
+  await db.update(platformAdmins).set({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt }).where(eq(platformAdmins.id, id));
+}
+
+export async function getPlatformAdminByResetTokenHash(tokenHash: string) {
+  const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.passwordResetTokenHash, tokenHash));
+  return admin ?? null;
+}
+
+// Appelée après un reset réussi (jeton consommé) ou pour invalider un jeton
+// en cours sans en émettre un nouveau — jamais appelée pour un jeton déjà NULL.
+export async function clearPlatformAdminPasswordResetToken(id: string) {
+  await db.update(platformAdmins).set({ passwordResetTokenHash: null, passwordResetExpiresAt: null }).where(eq(platformAdmins.id, id));
+}
+
+export async function updatePlatformAdminPassword(id: string, passwordHash: string) {
+  await db.update(platformAdmins).set({ passwordHash }).where(eq(platformAdmins.id, id));
+}
+
 export type PlatformEstablishmentSummary = {
   id: string;
   name: string;

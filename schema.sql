@@ -146,6 +146,12 @@ CREATE TABLE platform_admins (
     -- via /admin/setup (bloqué dès qu'une ligne existe), jamais par une
     -- inscription ouverte.
     password_hash       TEXT NOT NULL,
+    -- Flux "mot de passe oublié" (app/admin/forgot-password) : seul le hash
+    -- du jeton est stocké (SHA-256, lib/auth.ts) — jamais le jeton en
+    -- clair, qui ne transite que dans l'email envoyé. NULL une fois
+    -- utilisé ou expiré.
+    password_reset_token_hash    TEXT,
+    password_reset_expires_at    TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

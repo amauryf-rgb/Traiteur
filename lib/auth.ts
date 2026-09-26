@@ -222,3 +222,20 @@ export function verifyPassword(password: string, stored: string): boolean {
   const suppliedBuffer = crypto.scryptSync(password, salt, 64);
   return hashBuffer.length === suppliedBuffer.length && crypto.timingSafeEqual(hashBuffer, suppliedBuffer);
 }
+
+// ---------------------------------------------------------------------
+// Jeton "mot de passe oublié" (platform_admins) — SHA-256, pas scrypt : un
+// jeton est déjà une valeur aléatoire à haute entropie (32 octets, jamais
+// choisie par un humain), le ralentissement volontaire de scrypt contre le
+// bruteforce n'a pas de sens ici. Seul le hash est stocké ; le jeton en
+// clair ne transite que dans l'email envoyé (voir app/admin/forgot-password).
+// ---------------------------------------------------------------------
+
+export function generatePasswordResetToken(): { token: string; tokenHash: string } {
+  const token = crypto.randomBytes(32).toString("hex");
+  return { token, tokenHash: hashPasswordResetToken(token) };
+}
+
+export function hashPasswordResetToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
