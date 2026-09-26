@@ -23,9 +23,11 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// 6 chiffres (100000-999999) depuis le renforcement sécurité — même
+// convention que app/[slug]/pro/equipe/actions.ts.
 async function generateAccessCode(tx: Tx): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const code = String(Math.floor(1000 + Math.random() * 9000));
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     const [existing] = await tx.select().from(staffMembers).where(eq(staffMembers.accessCode, code));
     if (!existing) return code;
   }

@@ -13,6 +13,7 @@ import {
   interEntityInvoices,
   legalEntities,
   clientInvoices,
+  loginAttempts,
   orderItems,
   orders,
   paymentAccounts,
@@ -843,4 +844,38 @@ export async function getAccountingReportData(
     purchases,
     totalPurchases,
   };
+}
+
+// ---------------------------------------------------------------------
+// Journalisation des connexions (écran Équipe)
+// ---------------------------------------------------------------------
+
+// Une seule ligne par membre (la plus récente), pas tout l'historique — voir
+// getRecentFailedAttempts ci-dessous pour l'historique des échecs, affiché
+// séparément puisqu'un échec n'est jamais rattaché à un membre précis.
+export async function getLastLoginByStaffMember(tx: Tx, establishmentId: string): Promise<Map<string, Date>> {
+  const rows = await tx
+    .select({ staffMemberId: loginAttempts.staffMemberId, createdAt: loginAttempts.createdAt })
+    .from(loginAttempts)
+    .where(and(eq(loginAttempts.establishmentId, establishmentId), eq(loginAttempts.succeeded, true)))
+    .orderBy(desc(loginAttempts.createdAt));
+
+  const lastLoginByStaffMember = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.staffMemberId && !lastLoginByStaffMember.has(row.staffMemberId)) {
+      lastLoginByStaffMember.set(row.staffMemberId, row.createdAt);
+    }
+  }
+  return lastLoginByStaffMember;
+}
+
+export type RecentFailedAttempt = { ipAddress: string; createdAt: Date };
+
+export async function getRecentFailedAttempts(tx: Tx, establishmentId: string, limit = 20): Promise<RecentFailedAttempt[]> {
+  return tx
+    .select({ ipAddress: loginAttempts.ipAddress, createdAt: loginAttempts.createdAt })
+    .from(loginAttempts)
+    .where(and(eq(loginAttempts.establishmentId, establishmentId), eq(loginAttempts.succeeded, false)))
+    .orderBy(desc(loginAttempts.createdAt))
+    .limit(limit);
 }

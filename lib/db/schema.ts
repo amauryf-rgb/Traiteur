@@ -145,6 +145,23 @@ export const staffMembers = pgTable("staff_members", {
   tenantIsolationPolicy("staff_members_tenant_isolation", t.establishmentId),
 ]).enableRLS();
 
+// Historique des tentatives de connexion à /pro/login — sert à la fois au
+// verrouillage progressif (voir lib/loginSecurity.ts : compte les échecs
+// consécutifs par couple établissement + IP) et à la journalisation affichée
+// sur l'écran Équipe. staffMemberId n'est renseigné que sur une tentative
+// réussie (NULL sur un échec, puisqu'on ne sait pas qui essayait).
+export const loginAttempts = pgTable("login_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  ipAddress: text("ip_address").notNull(),
+  succeeded: boolean("succeeded").notNull(),
+  staffMemberId: uuid("staff_member_id").references(() => staffMembers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("login_attempts_establishment_ip_idx").on(t.establishmentId, t.ipAddress, t.createdAt),
+  tenantIsolationPolicy("login_attempts_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
 // Comptes propriétaires de la plateforme (toi) — voient tous les
 // établissements, contrairement à staff_members qui est toujours rattaché
 // à un seul establishment. Pas de RLS ici : c'est justement la table qui

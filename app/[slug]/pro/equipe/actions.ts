@@ -16,9 +16,11 @@ async function requireOwner(slug: string): Promise<{ establishmentId: string; co
   return { establishmentId: staffTenant.session.establishmentId, context: staffTenant.context };
 }
 
+// 6 chiffres (100000-999999) depuis le renforcement sécurité — voir
+// lib/loginSecurity.ts pour le verrouillage progressif qui l'accompagne.
 async function generateAccessCode(tx: Tx): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const code = String(Math.floor(1000 + Math.random() * 9000));
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     const [existing] = await tx.select().from(staffMembers).where(eq(staffMembers.accessCode, code));
     if (!existing) return code;
   }

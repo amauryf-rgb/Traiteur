@@ -102,10 +102,29 @@ CREATE TABLE staff_members (
     initials            TEXT,                             -- pour l'avatar ("MC", "SA")
     role                TEXT NOT NULL DEFAULT 'employee'
                         CHECK (role IN ('owner', 'manager', 'employee')),
-    -- Accès allégé employé (écran 10) : pas de mot de passe complet nécessaire
-    access_code         TEXT UNIQUE,                      -- lien ou code d'accès simplifié
+    -- Accès allégé employé (écran 10) : pas de mot de passe complet nécessaire.
+    -- 6 chiffres (100000-999999, 1 000 000 de combinaisons) depuis le
+    -- renforcement sécurité — voir login_attempts ci-dessous pour le
+    -- verrouillage progressif qui l'accompagne. Unique sur toute la
+    -- plateforme, pas seulement par établissement.
+    access_code         TEXT UNIQUE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Historique des tentatives de connexion à /pro/login — sert à la fois au
+-- verrouillage progressif (comptage des échecs consécutifs par couple
+-- établissement + IP, voir lib/loginSecurity.ts) et à la journalisation
+-- affichée sur l'écran Équipe. staff_member_id n'est renseigné que sur une
+-- tentative réussie (NULL sur un échec : on ne sait pas qui essayait).
+CREATE TABLE login_attempts (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    ip_address          TEXT NOT NULL,
+    succeeded           BOOLEAN NOT NULL,
+    staff_member_id     UUID REFERENCES staff_members(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX login_attempts_establishment_ip_idx ON login_attempts (establishment_id, ip_address, created_at);
 
 -- Comptes propriétaires de la plateforme (toi) — voient tous les
 -- établissements, contrairement à staff_members qui est toujours
@@ -546,6 +565,13 @@ CREATE POLICY staff_members_tenant_isolation ON staff_members
         OR establishment_id::text = current_setting('app.current_establishment_id', true)
     );
 
+ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY login_attempts_tenant_isolation ON login_attempts
+    USING (
+        current_setting('app.is_platform_admin', true) = 'true'
+        OR establishment_id::text = current_setting('app.current_establishment_id', true)
+    );
+
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY categories_tenant_isolation ON categories
     USING (
@@ -622,6 +648,7 @@ ALTER TABLE clients FORCE ROW LEVEL SECURITY;
 ALTER TABLE orders FORCE ROW LEVEL SECURITY;
 ALTER TABLE legal_entities FORCE ROW LEVEL SECURITY;
 ALTER TABLE staff_members FORCE ROW LEVEL SECURITY;
+ALTER TABLE login_attempts FORCE ROW LEVEL SECURITY;
 ALTER TABLE categories FORCE ROW LEVEL SECURITY;
 ALTER TABLE products FORCE ROW LEVEL SECURITY;
 ALTER TABLE allergens FORCE ROW LEVEL SECURITY;

@@ -39,8 +39,17 @@ function verify<T>(token: string): T | null {
 // juste un code vérifié contre cette table.
 // ---------------------------------------------------------------------
 
-const STAFF_COOKIE_NAME = "staff_session";
-const STAFF_SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
+// Exportées : proxy.ts a besoin du même nom de cookie et de la même durée
+// pour reconduire la session de façon glissante à chaque requête
+// authentifiée, sans dupliquer ces valeurs à un second endroit.
+export const STAFF_COOKIE_NAME = "staff_session";
+// Glissante depuis le renforcement sécurité (accès à des données comptables
+// désormais) : 4h d'inactivité totale expire la session, mais toute requête
+// authentifiée la reconduit de 4h à partir de ce moment — voir proxy.ts,
+// qui réémet le cookie sur chaque requête vers /[slug]/pro/**. Une session
+// activement utilisée ne coupe donc jamais en plein service ; un appareil
+// oublié déverrouillé se referme de lui-même en 4h maximum.
+export const STAFF_SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 
 export type StaffSession = {
   staffMemberId: string;
@@ -76,6 +85,20 @@ export async function getStaffSession(): Promise<StaffSession | null> {
   const payload = verify<StaffSession>(token);
   if (!payload || payload.exp < Date.now()) return null;
   return payload;
+}
+
+// Utilisé uniquement depuis proxy.ts (jamais depuis une page ou une action —
+// cookies().set() n'y est pas autorisé côté Server Component, voir la note
+// dans proxy.ts) : reçoit le cookie brut de la requête entrante, le
+// re-signe avec une nouvelle expiration s'il est encore valide. Retourne
+// null si le cookie est absent, invalide, ou déjà expiré — dans ce cas
+// proxy.ts ne touche à rien, laissant getStaffSession() rejeter normalement
+// plus loin dans le rendu.
+export function refreshStaffSessionToken(token: string): string | null {
+  const payload = verify<StaffSession>(token);
+  if (!payload || payload.exp < Date.now()) return null;
+  const refreshed: StaffSession = { ...payload, exp: Date.now() + STAFF_SESSION_DURATION_MS };
+  return sign(refreshed);
 }
 
 export async function clearStaffSession() {

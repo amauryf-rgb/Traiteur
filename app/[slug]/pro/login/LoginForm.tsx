@@ -27,6 +27,8 @@ export function LoginForm({
           placeholder="Code d'accès"
           autoFocus
           autoComplete="off"
+          inputMode="numeric"
+          maxLength={6}
           className="border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400 text-center tracking-widest"
         />
         {state.error && <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>}
