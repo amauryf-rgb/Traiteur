@@ -116,14 +116,18 @@ CREATE TABLE staff_members (
     UNIQUE (establishment_id, access_code)
 );
 
--- Historique des tentatives de connexion à /pro/login — sert à la fois au
--- verrouillage progressif (comptage des échecs consécutifs par couple
--- établissement + IP, voir lib/loginSecurity.ts) et à la journalisation
--- affichée sur l'écran Équipe. staff_member_id n'est renseigné que sur une
--- tentative réussie (NULL sur un échec : on ne sait pas qui essayait).
+-- Historique des tentatives de connexion à /pro/login ET à /admin/login —
+-- sert à la fois au verrouillage progressif (comptage des échecs
+-- consécutifs par couple établissement + IP, voir lib/loginSecurity.ts) et
+-- à la journalisation affichée sur l'écran Équipe. staff_member_id n'est
+-- renseigné que sur une tentative réussie côté pro (NULL sur un échec : on
+-- ne sait pas qui essayait). establishment_id NULL = tentative sur la
+-- console plateforme (/admin), qui n'est rattachée à aucun établissement —
+-- une ligne NULL n'est lisible/écrivable que sous un tx isPlatformAdmin=true
+-- (la policy RLS ne laisse jamais passer NULL::text = current_establishment_id).
 CREATE TABLE login_attempts (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    establishment_id    UUID NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+    establishment_id    UUID REFERENCES establishments(id) ON DELETE CASCADE,
     ip_address          TEXT NOT NULL,
     succeeded           BOOLEAN NOT NULL,
     staff_member_id     UUID REFERENCES staff_members(id) ON DELETE SET NULL,

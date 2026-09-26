@@ -1,7 +1,15 @@
 import { headers } from "next/headers";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { loginAttempts } from "./db/schema";
 import type { Tx } from "./tenant";
+
+// eq(col, null) génère "= NULL", toujours faux en SQL — il faut IS NULL.
+// establishmentId=null identifie une tentative sur /admin/login (console
+// plateforme, aucun établissement concerné), à ne jamais confondre avec une
+// tentative sur /pro/login pour un établissement donné.
+function establishmentCondition(establishmentId: string | null) {
+  return establishmentId === null ? isNull(loginAttempts.establishmentId) : eq(loginAttempts.establishmentId, establishmentId);
+}
 
 // x-nf-client-connection-ip : en-tête posé par l'edge Netlify lui-même,
 // donc jamais falsifiable par le client (contrairement à x-forwarded-for,
@@ -34,11 +42,12 @@ export type LoginAttemptStreak = { consecutiveFailures: number; lastFailureAt: D
 
 // Un succès interrompt la série : on ne remonte que jusqu'à la dernière
 // connexion réussie pour ce couple établissement + IP, jamais au-delà.
-export async function getRecentFailureStreak(tx: Tx, establishmentId: string, ipAddress: string): Promise<LoginAttemptStreak> {
+// establishmentId=null : tentatives sur /admin/login (voir establishmentCondition).
+export async function getRecentFailureStreak(tx: Tx, establishmentId: string | null, ipAddress: string): Promise<LoginAttemptStreak> {
   const recent = await tx
     .select({ succeeded: loginAttempts.succeeded, createdAt: loginAttempts.createdAt })
     .from(loginAttempts)
-    .where(and(eq(loginAttempts.establishmentId, establishmentId), eq(loginAttempts.ipAddress, ipAddress)))
+    .where(and(establishmentCondition(establishmentId), eq(loginAttempts.ipAddress, ipAddress)))
     .orderBy(desc(loginAttempts.createdAt))
     .limit(LOOKBACK_LIMIT);
 
@@ -63,7 +72,7 @@ export function currentLockout({ consecutiveFailures, lastFailureAt }: LoginAtte
 
 export async function recordLoginAttempt(
   tx: Tx,
-  params: { establishmentId: string; ipAddress: string; succeeded: boolean; staffMemberId?: string }
+  params: { establishmentId: string | null; ipAddress: string; succeeded: boolean; staffMemberId?: string }
 ) {
   await tx.insert(loginAttempts).values({
     establishmentId: params.establishmentId,

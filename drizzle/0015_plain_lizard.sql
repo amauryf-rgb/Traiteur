@@ -1,0 +1,1 @@
+ALTER TABLE "login_attempts" ALTER COLUMN "establishment_id" DROP NOT NULL;

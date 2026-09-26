@@ -160,7 +160,14 @@ export const staffMembers = pgTable("staff_members", {
 // réussie (NULL sur un échec, puisqu'on ne sait pas qui essayait).
 export const loginAttempts = pgTable("login_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
-  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  // NULL = tentative de connexion à /admin (console plateforme), qui n'est
+  // rattachée à aucun établissement — voir requirePlatformAdminContext et
+  // getRecentFailureStreak(tx, null, ip) dans app/admin/login/actions.ts.
+  // Une ligne à establishment_id NULL n'est lisible/écrivable que sous un tx
+  // isPlatformAdmin=true (voir tenantIsolationPolicy plus bas : NULL::text
+  // n'égale jamais current_establishment_id, seule la branche
+  // is_platform_admin de la policy peut la laisser passer).
+  establishmentId: uuid("establishment_id").references(() => establishments.id, { onDelete: "cascade" }),
   ipAddress: text("ip_address").notNull(),
   succeeded: boolean("succeeded").notNull(),
   staffMemberId: uuid("staff_member_id").references(() => staffMembers.id, { onDelete: "set null" }),
