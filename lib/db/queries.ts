@@ -903,3 +903,7 @@ export async function getRecentFailedAttempts(tx: Tx, establishmentId: string, l
     .orderBy(desc(loginAttempts.createdAt))
     .limit(limit);
 }
+
+export async function markClientInvoiceEmailSent(tx: Tx, invoiceId: string): Promise<void> {
+  await tx.update(clientInvoices).set({ emailSentAt: new Date() }).where(eq(clientInvoices.id, invoiceId));
+}

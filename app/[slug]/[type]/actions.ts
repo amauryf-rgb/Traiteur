@@ -8,6 +8,7 @@ import {
   getClosuresInRange,
   getPaymentAccountForEntity,
   getSellingEntity,
+  markClientInvoiceEmailSent,
   type DayCapacityStatus,
 } from "@/lib/db/queries";
 import { getPublicTenantContext, runAsTenant } from "@/lib/tenant";
@@ -24,15 +25,15 @@ import type { CartLine, OrderType } from "@/lib/types";
 // qui échoue (Resend en panne, clé manquante) ne doit jamais faire échouer
 // ni annuler une commande déjà confirmée et payée. La facture (client_invoices)
 // est, elle, créée dans la même transaction que la commande — voir plus bas.
-async function sendClientInvoiceEmail(bundle: ClientInvoiceBundle, establishmentName: string) {
+async function sendClientInvoiceEmail(bundle: ClientInvoiceBundle, establishmentName: string): Promise<boolean> {
   const email = bundle.order.clientContact;
-  if (!email || !isValidEmail(email)) return;
+  if (!email || !isValidEmail(email)) return false;
 
   try {
     const buffer = await renderToBuffer(
       ClientInvoiceDocument({ invoice: bundle.invoice, order: bundle.order, items: bundle.items, sellingEntity: bundle.sellingEntity, establishmentName })
     );
-    await sendEmail({
+    return await sendEmail({
       to: email,
       subject: `Votre facture ${bundle.invoice.invoiceNumber} — ${establishmentName}`,
       html: `<p>Bonjour ${bundle.order.clientName},</p><p>Merci pour votre commande chez ${establishmentName}. Vous trouverez votre facture en pièce jointe.</p>`,
@@ -40,6 +41,7 @@ async function sendClientInvoiceEmail(bundle: ClientInvoiceBundle, establishment
     });
   } catch (err) {
     console.error("sendClientInvoiceEmail: échec", err);
+    return false;
   }
 }
 
@@ -317,7 +319,14 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
   }
 
   if (invoiceBundle) {
-    await sendClientInvoiceEmail(invoiceBundle, establishment.name);
+    // Annotation explicite nécessaire : sans elle, tsc perd le typage de
+    // invoiceBundle dans la closure ci-dessous (variable réassignée dans le
+    // callback async de runAsTenant plus haut) et infère `never`.
+    const bundle: ClientInvoiceBundle = invoiceBundle;
+    const sent = await sendClientInvoiceEmail(bundle, establishment.name);
+    if (sent) {
+      await runAsTenant(context, (tx) => markClientInvoiceEmailSent(tx, bundle.invoice.id));
+    }
   }
 
   redirect(`/${input.slug}/${orderType}/confirmation/${orderId}`);
