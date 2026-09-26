@@ -64,6 +64,30 @@ export async function addStaffMember(slug: string, _prevState: StaffFormState, f
   return {};
 }
 
+// Réinitialisation par un owner — utile si un employé oublie son code.
+// Contrairement à changeOwnAccessCode (compte/actions.ts), pas besoin de
+// connaître l'ancien code : c'est justement le mécanisme de secours quand on
+// ne l'a plus. Le nouveau code généré redevient visible immédiatement dans
+// la liste de l'écran Équipe, exactement comme après un ajout de membre.
+export async function resetStaffAccessCode(slug: string, staffId: string) {
+  const { establishmentId, context } = await requireOwner(slug);
+
+  const outcome = await runAsTenant(context, async (tx) => {
+    const [staff] = await tx.select().from(staffMembers).where(and(eq(staffMembers.id, staffId), eq(staffMembers.establishmentId, establishmentId)));
+    if (!staff) return "not_found" as const;
+
+    const newCode = await generateAccessCode(tx);
+    await tx.update(staffMembers).set({ accessCode: newCode }).where(eq(staffMembers.id, staffId));
+    return "reset" as const;
+  });
+
+  if (outcome === "not_found") {
+    throw new Error("Membre introuvable ou n'appartenant pas à cet établissement.");
+  }
+
+  revalidatePath(`/${slug}/pro/equipe`);
+}
+
 export async function removeStaffMember(slug: string, staffId: string) {
   const { establishmentId, context } = await requireOwner(slug);
 

@@ -138,10 +138,18 @@ export const staffMembers = pgTable("staff_members", {
   name: text("name").notNull(),
   initials: text("initials"),
   role: text("role").notNull().default("employee"),
-  accessCode: text("access_code").unique(),
+  // Unique PAR ÉTABLISSEMENT (voir l'index composite ci-dessous), pas sur
+  // toute la plateforme comme avant ce chantier : la vérification
+  // d'unicité dans generateAccessCode (equipe/actions.ts, admin/actions.ts)
+  // tourne sous runAsTenant, donc déjà filtrée par RLS à l'établissement
+  // courant — une contrainte globale laissait passer un code déjà pris
+  // ailleurs, avec un INSERT qui échouait ensuite sur la contrainte sans
+  // que le code applicatif s'y attende.
+  accessCode: text("access_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("staff_role_check", sql`${t.role} IN ('owner','manager','employee')`),
+  uniqueIndex("staff_members_establishment_access_code_unique").on(t.establishmentId, t.accessCode),
   tenantIsolationPolicy("staff_members_tenant_isolation", t.establishmentId),
 ]).enableRLS();
 

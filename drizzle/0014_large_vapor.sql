@@ -1,0 +1,2 @@
+ALTER TABLE "staff_members" DROP CONSTRAINT "staff_members_access_code_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "staff_members_establishment_access_code_unique" ON "staff_members" USING btree ("establishment_id","access_code");

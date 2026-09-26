@@ -150,6 +150,11 @@ export async function getStaffForEstablishment(tx: Tx, establishmentId: string) 
   return tx.select().from(staffMembers).where(eq(staffMembers.establishmentId, establishmentId));
 }
 
+export async function getStaffMemberById(tx: Tx, staffMemberId: string) {
+  const [staff] = await tx.select().from(staffMembers).where(eq(staffMembers.id, staffMemberId));
+  return staff ?? null;
+}
+
 // Univers (traiteur/boutique) auquel ce membre du staff est rattaché, via
 // l'entité juridique par défaut de son entité — ex. Richard (Boutique Sàrl)
 // → "boutique", Michele (Traiteur SA) → "traiteur". Retourne null si le

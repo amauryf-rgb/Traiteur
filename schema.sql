@@ -105,10 +105,15 @@ CREATE TABLE staff_members (
     -- Accès allégé employé (écran 10) : pas de mot de passe complet nécessaire.
     -- 6 chiffres (100000-999999, 1 000 000 de combinaisons) depuis le
     -- renforcement sécurité — voir login_attempts ci-dessous pour le
-    -- verrouillage progressif qui l'accompagne. Unique sur toute la
-    -- plateforme, pas seulement par établissement.
-    access_code         TEXT UNIQUE,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    -- verrouillage progressif qui l'accompagne. Unique PAR ÉTABLISSEMENT
+    -- (UNIQUE (establishment_id, access_code) plus bas), pas sur toute la
+    -- plateforme : une contrainte globale laissait la vérification
+    -- d'unicité de generateAccessCode (filtrée par RLS à l'établissement
+    -- courant) juger "libre" un code déjà pris ailleurs, avec un INSERT qui
+    -- échouait ensuite sans que le code applicatif s'y attende.
+    access_code         TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (establishment_id, access_code)
 );
 
 -- Historique des tentatives de connexion à /pro/login — sert à la fois au

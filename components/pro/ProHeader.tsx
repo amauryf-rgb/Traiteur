@@ -2,7 +2,7 @@ import Link from "next/link";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/[slug]/pro/actions";
 
-export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "equipe" | "fermetures";
+export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "equipe" | "fermetures" | "compte";
 
 const NAV_ITEMS: { key: ProNavKey; href: string; label: string; ownerOnly?: boolean }[] = [
   { key: "planning", href: "", label: "Planning" },
@@ -12,6 +12,9 @@ const NAV_ITEMS: { key: ProNavKey; href: string; label: string; ownerOnly?: bool
   { key: "dossier", href: "/dossier", label: "Dossier", ownerOnly: true },
   { key: "equipe", href: "/equipe", label: "Équipe", ownerOnly: true },
   { key: "fermetures", href: "/fermetures", label: "Fermetures", ownerOnly: true },
+  // Volontairement pas ownerOnly : chacun (owner, manager, employé) gère
+  // son propre code d'accès depuis là — voir app/[slug]/pro/compte/.
+  { key: "compte", href: "/compte", label: "Mon compte" },
 ];
 
 export function ProHeader({

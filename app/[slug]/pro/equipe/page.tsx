@@ -10,7 +10,7 @@ import { requireStaffTenantContext, runAsTenant } from "@/lib/tenant";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { AddStaffForm } from "./AddStaffForm";
-import { removeStaffMember } from "./actions";
+import { removeStaffMember, resetStaffAccessCode } from "./actions";
 
 const ROLE_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   owner: { label: "Propriétaire", tone: "success" },
@@ -84,11 +84,18 @@ export default async function EquipePage({
                   : "Jamais connecté"}
               </p>
             </div>
-            <form action={removeStaffMember.bind(null, slug, member.id)}>
-              <button type="submit" className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap">
-                Supprimer
-              </button>
-            </form>
+            <div className="flex items-center gap-3 shrink-0">
+              <form action={resetStaffAccessCode.bind(null, slug, member.id)}>
+                <button type="submit" className="text-xs text-stone-500 hover:text-stone-700 underline whitespace-nowrap">
+                  Réinitialiser le code
+                </button>
+              </form>
+              <form action={removeStaffMember.bind(null, slug, member.id)}>
+                <button type="submit" className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap">
+                  Supprimer
+                </button>
+              </form>
+            </div>
           </div>
         ))}
         {staff.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucun membre d&apos;équipe.</p>}
