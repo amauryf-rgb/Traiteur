@@ -7,6 +7,8 @@ import { saveCheckoutState, useCart } from "@/lib/cart";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
 import { Button } from "@/components/ui/Button";
+import { Ornament } from "@/components/Ornament";
+import { GRAIN_STYLE, INK_MUTED, PAPER_LINE } from "@/lib/theme";
 import { reserveSlot } from "./actions";
 import { TraiteurCalendar } from "./TraiteurCalendar";
 import { MenuRow } from "./MenuRow";
@@ -24,7 +26,7 @@ type Establishment = { name: string; tagline: string | null; accentColor: string
 const SELECT_CLASS_NAME = "appearance-none bg-transparent bg-no-repeat text-sm outline-none w-full pr-5";
 const SELECT_ARROW_STYLE = {
   backgroundImage:
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23a8a29e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")",
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b5d55' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")",
   backgroundPosition: "right center",
   backgroundSize: "12px",
 };
@@ -43,6 +45,7 @@ export function CatalogueClient({
   dates,
   times,
   closedWeekdays,
+  signatureName,
 }: {
   slug: string;
   orderType: OrderType;
@@ -52,6 +55,7 @@ export function CatalogueClient({
   dates: string[];
   times: string[];
   closedWeekdays: number[];
+  signatureName: string | null;
 }) {
   const router = useRouter();
   const cart = useCart(slug, orderType);
@@ -80,6 +84,15 @@ export function CatalogueClient({
 
   const visibleProducts = activeCategory === "Tout" ? products : products.filter((p) => p.categoryName === activeCategory);
   const accentColor = establishment.accentColor ?? "#1a1a1a";
+
+  // Numérotation continue (01, 02, 03…) sur l'ensemble des produits visibles,
+  // jamais remise à zéro par section — comme dans la démo, où les sections ne
+  // sont qu'un regroupement visuel, pas une nouvelle liste.
+  const productIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    visibleProducts.forEach((p, i) => map.set(p.id, i + 1));
+    return map;
+  }, [visibleProducts]);
 
   // Sous-titre de section (renseigné par le pro, écran catalogue) : regroupe
   // les produits partageant le même intitulé sous un même titre de section,
@@ -136,7 +149,7 @@ export function CatalogueClient({
 
   if (times.length === 0) {
     return (
-      <div className="min-h-screen bg-stone-50">
+      <div className="min-h-screen" style={GRAIN_STYLE}>
         <CatalogueHeader
           slug={slug}
           orderType={orderType}
@@ -146,7 +159,7 @@ export function CatalogueClient({
           ctaDisabled
           onCtaClick={() => {}}
         />
-        <p className="max-w-4xl mx-auto px-6 py-10 text-center text-stone-400 text-sm">
+        <p className="max-w-4xl mx-auto px-6 py-10 text-center text-sm" style={{ color: INK_MUTED }}>
           Aucun créneau de retrait disponible pour aujourd&apos;hui. Revenez demain.
         </p>
       </div>
@@ -164,8 +177,8 @@ export function CatalogueClient({
           accentColor={accentColor}
           closedWeekdays={closedWeekdays}
         />
-        <label className="block px-6 py-3 border-b border-stone-200 text-left">
-          <span className="block text-xs text-stone-400">Heure</span>
+        <label className="block px-6 py-3 text-left" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
+          <span className="block text-xs" style={{ color: INK_MUTED }}>Heure</span>
           <select
             className={SELECT_CLASS_NAME}
             style={SELECT_ARROW_STYLE}
@@ -181,9 +194,9 @@ export function CatalogueClient({
         </label>
       </>
     ) : (
-      <div className="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
-        <label className="px-4 py-3 text-left">
-          <span className="block text-xs text-stone-400">Retrait</span>
+      <div className="grid grid-cols-2" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
+        <label className="px-4 py-3 text-left" style={{ borderRight: `1px solid ${PAPER_LINE}` }}>
+          <span className="block text-xs" style={{ color: INK_MUTED }}>Retrait</span>
           {orderType === "boutique" ? (
             <span className="text-sm">Aujourd&apos;hui</span>
           ) : (
@@ -202,7 +215,7 @@ export function CatalogueClient({
           )}
         </label>
         <label className="px-4 py-3 text-left">
-          <span className="block text-xs text-stone-400">Heure</span>
+          <span className="block text-xs" style={{ color: INK_MUTED }}>Heure</span>
           <select
             className={SELECT_CLASS_NAME}
             style={SELECT_ARROW_STYLE}
@@ -221,7 +234,7 @@ export function CatalogueClient({
 
   const cartSummary = (
     <>
-      <p className="text-xs text-stone-400">
+      <p className="text-xs" style={{ color: INK_MUTED }}>
         {cart.totalItems} article{cart.totalItems > 1 ? "s" : ""}
       </p>
       <p className="text-sm font-medium">{formatCHF(cart.totalAmount)}</p>
@@ -229,7 +242,7 @@ export function CatalogueClient({
   );
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-28">
+    <div className="min-h-screen pb-28" style={GRAIN_STYLE}>
       <CatalogueHeader
         slug={slug}
         orderType={orderType}
@@ -240,7 +253,8 @@ export function CatalogueClient({
         onCtaClick={handleContinue}
       />
 
-      <div className="text-center px-6 pt-12 pb-8">
+      <div className="text-center px-6 pt-8 pb-8">
+        <Ornament color={accentColor} />
         <p className="text-xs uppercase tracking-widest mb-3" style={{ color: accentColor }}>
           {EYEBROW[orderType]}
         </p>
@@ -252,22 +266,22 @@ export function CatalogueClient({
           <div className="flex justify-end gap-3 pt-3 text-xs pb-2">
             <button
               onClick={() => setDateView("liste")}
-              style={dateView === "liste" ? { color: accentColor, fontWeight: 500 } : { color: "#a8a29e" }}
+              style={dateView === "liste" ? { color: accentColor, fontWeight: 500 } : { color: INK_MUTED }}
             >
               Liste
             </button>
             <button
               onClick={() => setDateView("calendrier")}
-              style={dateView === "calendrier" ? { color: accentColor, fontWeight: 500 } : { color: "#a8a29e" }}
+              style={dateView === "calendrier" ? { color: accentColor, fontWeight: 500 } : { color: INK_MUTED }}
             >
               Calendrier
             </button>
           </div>
         )}
 
-        <div className="border-t border-stone-200">{dateTimeSelector}</div>
+        <div style={{ borderTop: `1px solid ${PAPER_LINE}` }}>{dateTimeSelector}</div>
 
-        <div className="flex flex-wrap justify-center gap-6 py-4 border-b border-stone-200">
+        <div className="flex flex-wrap justify-center gap-6 py-4" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
           {categories.map((category) => (
             <button
               key={category}
@@ -276,7 +290,7 @@ export function CatalogueClient({
               style={
                 activeCategory === category
                   ? { borderBottom: `2px solid ${accentColor}`, color: accentColor, fontWeight: 500 }
-                  : { color: "#a8a29e" }
+                  : { color: INK_MUTED }
               }
             >
               {category}
@@ -297,6 +311,7 @@ export function CatalogueClient({
                   <MenuRow
                     key={product.id}
                     product={product}
+                    index={productIndex.get(product.id) ?? 0}
                     quantity={quantityFor(product.id)}
                     accentColor={accentColor}
                     isOpen={openProductId === product.id}
@@ -308,12 +323,20 @@ export function CatalogueClient({
             </div>
           ))}
           {visibleProducts.length === 0 && (
-            <p className="py-8 text-center text-stone-400 text-sm">Aucun produit dans cette catégorie.</p>
+            <p className="py-8 text-center text-sm" style={{ color: INK_MUTED }}>Aucun produit dans cette catégorie.</p>
           )}
         </div>
+
+        {signatureName && (
+          <div className="text-center pt-2 pb-6" style={{ borderTop: `1px solid ${PAPER_LINE}` }}>
+            <p className="font-serif italic text-[15px] pt-4" style={{ color: INK_MUTED }}>
+              Buon appetito, {signatureName}.
+            </p>
+          </div>
+        )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200">
+      <div className="fixed bottom-0 left-0 right-0" style={{ ...GRAIN_STYLE, borderTop: `1px solid ${PAPER_LINE}` }}>
         {error && <p className="max-w-4xl mx-auto bg-red-50 text-red-700 text-xs px-6 py-2 text-center">{error}</p>}
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>{cartSummary}</div>

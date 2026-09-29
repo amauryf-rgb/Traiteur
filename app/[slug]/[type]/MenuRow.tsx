@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from "react";
 import { formatCHF } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { useCanHover } from "@/lib/useCanHover";
+import { INK_MUTED, PAPER_LINE } from "@/lib/theme";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
 // Format "menu de restaurant" (voir catalogue-carte-restaurant-reference.html
@@ -21,6 +22,7 @@ import type { CatalogueProduct } from "@/lib/db/queries";
 //   contrôle du panneau déplié le fait (évite les ajouts accidentels).
 export function MenuRow({
   product,
+  index,
   quantity,
   accentColor,
   isOpen,
@@ -28,6 +30,7 @@ export function MenuRow({
   onUpdateQuantity,
 }: {
   product: CatalogueProduct;
+  index: number;
   quantity: number;
   accentColor: string;
   isOpen: boolean;
@@ -47,21 +50,33 @@ export function MenuRow({
     <>
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="font-serif text-base whitespace-nowrap">{product.name}</span>
-        <span className="flex-1 border-b border-dotted border-stone-300 relative -top-1" />
+        <span className="flex-1 border-b border-dotted relative -top-1" style={{ borderColor: PAPER_LINE }} />
         <span className="font-serif italic text-[15px] whitespace-nowrap" style={{ color: accentColor }}>
           {formatCHF(Number(product.priceAmount))}
         </span>
       </div>
-      {product.description && <p className="text-sm italic text-stone-400 mt-1">{product.description}</p>}
+      {product.description && (
+        <p className="text-sm italic mt-1" style={{ color: INK_MUTED }}>
+          {product.description}
+        </p>
+      )}
       {product.allergens.length > 0 && (
-        <p className="text-xs text-stone-400 mt-0.5">Contient {product.allergens.join(", ").toLowerCase()}</p>
+        <p className="text-xs mt-0.5" style={{ color: INK_MUTED }}>
+          Contient {product.allergens.join(", ").toLowerCase()}
+        </p>
       )}
     </>
   );
 
   return (
-    <div className="relative py-3.5 border-b border-stone-100 last:border-b-0" style={accentVars}>
+    <div className="relative py-3.5 border-b last:border-b-0" style={{ ...accentVars, borderColor: PAPER_LINE }}>
       <div className="flex items-start gap-3">
+        <span
+          className="font-serif italic text-[13px] pt-0.5 w-[22px] shrink-0 opacity-70"
+          style={{ color: accentColor }}
+        >
+          {String(index).padStart(2, "0")}
+        </span>
         <div
           className="flex-1 min-w-0"
           onMouseEnter={canHover ? () => setHovered(true) : undefined}

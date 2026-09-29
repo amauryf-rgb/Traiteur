@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCatalogueProducts, getClosuresInRange } from "@/lib/db/queries";
+import { getCatalogueProducts, getClosuresInRange, getSignatureFirstName } from "@/lib/db/queries";
 import { getClientTenantContext, getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import {
   closureDatesForType,
@@ -30,12 +30,13 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   const today = getTodayISO();
   const { end: windowEnd } = getTraiteurWindowBounds();
 
-  const { products, closureRows } = await runAsTenant(context, async (tx) => {
+  const { products, closureRows, signatureName } = await runAsTenant(context, async (tx) => {
     const products = await getCatalogueProducts(tx, establishment.id, type);
     // Plage couvrant à la fois le cas boutique (aujourd'hui seul) et la
     // fenêtre traiteur complète, en une seule requête.
     const closureRows = await getClosuresInRange(tx, establishment.id, today, windowEnd);
-    return { products, closureRows };
+    const signatureName = await getSignatureFirstName(tx, establishment.id, type);
+    return { products, closureRows, signatureName };
   });
 
   const closedWeekdays = type === "boutique" ? establishment.closedWeekdaysBoutique : establishment.closedWeekdaysTraiteur;
@@ -84,6 +85,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
       dates={dates}
       times={times}
       closedWeekdays={closedWeekdays}
+      signatureName={signatureName}
     />
   );
 }

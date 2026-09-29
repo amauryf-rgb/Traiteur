@@ -165,6 +165,33 @@ export async function getLegalEntitiesForEstablishment(tx: Tx, establishmentId: 
   return tx.select().from(legalEntities).where(eq(legalEntities.establishmentId, establishmentId));
 }
 
+// Prénom affiché en signature du catalogue ("Buon appetito, [prénom]."), sans
+// champ dédié : on réutilise l'owner déjà rattaché à l'entité qui vend cet
+// univers (même entité que getSellingEntity), avec repli sur le premier
+// owner de l'établissement si aucun owner n'est spécifiquement rattaché à
+// cette entité (cas mono-entité, ou owner sans legalEntityId renseigné).
+export async function getSignatureFirstName(tx: Tx, establishmentId: string, orderType: OrderType): Promise<string | null> {
+  const entity = await getSellingEntity(tx, establishmentId, orderType);
+
+  if (entity) {
+    const [entityOwner] = await tx
+      .select({ name: staffMembers.name })
+      .from(staffMembers)
+      .where(and(eq(staffMembers.establishmentId, establishmentId), eq(staffMembers.legalEntityId, entity.id), eq(staffMembers.role, "owner")))
+      .orderBy(asc(staffMembers.createdAt))
+      .limit(1);
+    if (entityOwner) return entityOwner.name.trim().split(/\s+/)[0];
+  }
+
+  const [anyOwner] = await tx
+    .select({ name: staffMembers.name })
+    .from(staffMembers)
+    .where(and(eq(staffMembers.establishmentId, establishmentId), eq(staffMembers.role, "owner")))
+    .orderBy(asc(staffMembers.createdAt))
+    .limit(1);
+  return anyOwner ? anyOwner.name.trim().split(/\s+/)[0] : null;
+}
+
 export async function getStaffForEstablishment(tx: Tx, establishmentId: string) {
   return tx.select().from(staffMembers).where(eq(staffMembers.establishmentId, establishmentId));
 }
