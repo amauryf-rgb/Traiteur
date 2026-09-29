@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
-import { interEntityInvoiceLines, interEntityInvoices, legalEntities, orders } from "@/lib/db/schema";
+import { interEntityInvoiceLines, interEntityInvoices, legalEntities, orders, purchaseInvoices } from "@/lib/db/schema";
 import { requireStaffTenantContext, runAsTenant, type Tx, type TenantContext } from "@/lib/tenant";
 
 async function requireOwner(slug: string): Promise<{ establishmentId: string; context: TenantContext }> {
@@ -19,6 +19,39 @@ async function requireOwner(slug: string): Promise<{ establishmentId: string; co
 // contre une double soumission concurrente : la contrainte unique
 // (establishment_id, invoice_number) fait échouer l'insert plutôt que de
 // laisser passer un doublon silencieux — voir inter_entity_invoices_number_unique.
+// Une facture inter-entités est, du point de vue de l'entité destinataire,
+// une facture d'achat comme une autre : sans ce miroir automatique, Richard
+// (boutique) ne verrait jamais dans son Dossier ce que Michele (traiteur) lui
+// facture, et devrait le ressaisir à la main — avec le risque d'oubli ou de
+// montant qui diverge entre les deux saisies. scanUrl pointe vers le PDF de
+// la facture elle-même (accessible à tout owner de l'établissement, voir
+// facturation/[invoiceId]/pdf/route.ts) plutôt que vers un fichier séparé.
+async function mirrorAsPurchaseInvoice(
+  tx: Tx,
+  slug: string,
+  establishmentId: string,
+  invoiceId: string,
+  invoiceNumber: string,
+  fromEntityId: string,
+  toEntityId: string,
+  invoiceDate: string,
+  amount: string
+): Promise<void> {
+  if (Number(amount) <= 0) return;
+
+  const [fromEntity] = await tx.select({ name: legalEntities.name }).from(legalEntities).where(eq(legalEntities.id, fromEntityId));
+
+  await tx.insert(purchaseInvoices).values({
+    establishmentId,
+    legalEntityId: toEntityId,
+    supplierName: fromEntity?.name ?? "Entité interne",
+    invoiceDate,
+    amount,
+    description: `Facture inter-entités ${invoiceNumber}`,
+    scanUrl: `/${slug}/pro/facturation/${invoiceId}/pdf`,
+  });
+}
+
 async function nextInvoiceNumber(tx: Tx, establishmentId: string): Promise<string> {
   const year = new Date().getFullYear();
   const [{ count }] = await tx
@@ -82,9 +115,12 @@ export async function generateInvoice(slug: string, formData: FormData) {
       .returning();
 
     await tx.insert(interEntityInvoiceLines).values(lines.map((line) => ({ ...line, invoiceId: invoice.id })));
+
+    await mirrorAsPurchaseInvoice(tx, slug, establishmentId, invoice.id, invoice.invoiceNumber, fromEntityId, toEntityId, periodEnd, invoice.totalAmount);
   });
 
   revalidatePath(`/${slug}/pro/facturation`);
+  revalidatePath(`/${slug}/pro/dossier`);
 }
 
 export type ManualInvoiceState = { error?: string };
@@ -145,12 +181,15 @@ export async function createManualInvoice(
       included: true,
     });
 
+    await mirrorAsPurchaseInvoice(tx, slug, establishmentId, invoice.id, invoice.invoiceNumber, fromEntityId, toEntityId, date, invoice.totalAmount);
+
     return null;
   });
 
   if (result?.error) return result;
 
   revalidatePath(`/${slug}/pro/facturation`);
+  revalidatePath(`/${slug}/pro/dossier`);
   return {};
 }
 
