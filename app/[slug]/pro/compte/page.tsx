@@ -5,7 +5,7 @@ import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { ChangeAccessCodeForm } from "./ChangeAccessCodeForm";
 
 // Accessible à tout membre de l'équipe connecté, quel que soit son rôle —
-// contrairement à /pro/equipe (réservé owner), chacun ne gère ici que son
+// contrairement à /pro/etablissement (réservé owner), chacun ne gère ici que son
 // propre compte.
 export default async function ComptePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

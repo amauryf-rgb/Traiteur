@@ -60,7 +60,7 @@ export async function addStaffMember(slug: string, _prevState: StaffFormState, f
 
   if (result?.error) return result;
 
-  revalidatePath(`/${slug}/pro/equipe`);
+  revalidatePath(`/${slug}/pro/etablissement`);
   return {};
 }
 
@@ -85,7 +85,7 @@ export async function resetStaffAccessCode(slug: string, staffId: string) {
     throw new Error("Membre introuvable ou n'appartenant pas à cet établissement.");
   }
 
-  revalidatePath(`/${slug}/pro/equipe`);
+  revalidatePath(`/${slug}/pro/etablissement`);
 }
 
 export async function removeStaffMember(slug: string, staffId: string) {
@@ -105,8 +105,8 @@ export async function removeStaffMember(slug: string, staffId: string) {
     return "removed" as const;
   });
 
-  if (outcome === "not_found") redirect(`/${slug}/pro/equipe`);
-  if (outcome === "last_owner") redirect(`/${slug}/pro/equipe?error=last_owner`);
+  if (outcome === "not_found") redirect(`/${slug}/pro/etablissement?tab=equipe`);
+  if (outcome === "last_owner") redirect(`/${slug}/pro/etablissement?tab=equipe&error=last_owner`);
 
-  revalidatePath(`/${slug}/pro/equipe`);
+  revalidatePath(`/${slug}/pro/etablissement`);
 }

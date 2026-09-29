@@ -52,7 +52,7 @@ export async function updateClosedWeekdays(slug: string, orderType: OrderType, f
     throw new Error("Établissement introuvable.");
   }
 
-  revalidatePath(`/${slug}/pro/fermetures`);
+  revalidatePath(`/${slug}/pro/etablissement`);
 }
 
 export type AddClosureState = { error?: string };
@@ -77,7 +77,7 @@ export async function addClosure(slug: string, orderType: OrderType, _prevState:
     throw err;
   }
 
-  revalidatePath(`/${slug}/pro/fermetures`);
+  revalidatePath(`/${slug}/pro/etablissement`);
   return {};
 }
 
@@ -109,5 +109,5 @@ export async function removeClosure(slug: string, closureId: string) {
     throw new Error("Fermeture introuvable, non autorisée, ou n'appartenant pas à cet établissement.");
   }
 
-  revalidatePath(`/${slug}/pro/fermetures`);
+  revalidatePath(`/${slug}/pro/etablissement`);
 }

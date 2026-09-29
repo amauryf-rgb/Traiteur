@@ -56,7 +56,7 @@ async function seed() {
 
   // Accès allégé côté interface pro (écran 10) : un code suffit, pas de
   // compte complet à créer par membre d'équipe. D'autres membres se gèrent
-  // ensuite depuis l'écran Équipe (/pro/equipe), pas en dur ici.
+  // ensuite depuis l'écran Établissement (/pro/etablissement), pas en dur ici.
   await db.insert(staffMembers).values([
     {
       establishmentId: establishment.id,

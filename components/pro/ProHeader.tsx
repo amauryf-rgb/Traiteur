@@ -2,7 +2,7 @@ import Link from "next/link";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/[slug]/pro/actions";
 
-export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "equipe" | "fermetures" | "compte";
+export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "etablissement" | "compte";
 
 const NAV_ITEMS: { key: ProNavKey; href: string; label: string; ownerOnly?: boolean }[] = [
   { key: "planning", href: "", label: "Planning" },
@@ -10,8 +10,9 @@ const NAV_ITEMS: { key: ProNavKey; href: string; label: string; ownerOnly?: bool
   { key: "catalogue", href: "/catalogue", label: "Catalogue" },
   { key: "facturation", href: "/facturation", label: "Facturation", ownerOnly: true },
   { key: "dossier", href: "/dossier", label: "Dossier", ownerOnly: true },
-  { key: "equipe", href: "/equipe", label: "Équipe", ownerOnly: true },
-  { key: "fermetures", href: "/fermetures", label: "Fermetures", ownerOnly: true },
+  // Regroupe équipe, fermetures et identité visuelle (logo/bandeau) sous un
+  // seul lien, en onglets — évite d'ajouter un 8e lien à une nav déjà dense.
+  { key: "etablissement", href: "/etablissement", label: "Établissement", ownerOnly: true },
   // Volontairement pas ownerOnly : chacun (owner, manager, employé) gère
   // son propre code d'accès depuis là — voir app/[slug]/pro/compte/.
   { key: "compte", href: "/compte", label: "Mon compte" },

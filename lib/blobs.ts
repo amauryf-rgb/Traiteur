@@ -22,3 +22,17 @@ export function getPurchaseInvoiceScanStore() {
 }
 
 export const PURCHASE_INVOICE_SCAN_ROUTE_PREFIX = "/api/purchase-invoice-scan/";
+
+// Logo + bandeau photo de l'établissement (identité visuelle, /pro/etablissement)
+// — store séparé des photos produit, même si le mécanisme est identique, pour
+// ne jamais mélanger les deux familles de blobs.
+export function getEstablishmentMediaStore() {
+  return getStore({ name: "establishment-media", consistency: "strong" });
+}
+
+export const ESTABLISHMENT_MEDIA_ROUTE_PREFIX = "/api/establishment-media/";
+
+export function establishmentMediaKeyFromUrl(url: string | null): string | null {
+  if (!url || !url.startsWith(ESTABLISHMENT_MEDIA_ROUTE_PREFIX)) return null;
+  return url.slice(ESTABLISHMENT_MEDIA_ROUTE_PREFIX.length);
+}
