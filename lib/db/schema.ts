@@ -239,6 +239,11 @@ export const products = pgTable("products", {
   // suffit, voir MenuRow/CatalogueClient pour le regroupement à l'affichage.
   sectionTitle: text("section_title"),
   priceAmount: numeric("price_amount", { precision: 10, scale: 2 }).notNull(),
+  // Prix "sans dessert" — NULL pour l'immense majorité des produits (aucune
+  // option). Renseigné uniquement sur les formules traiteur qui proposent le
+  // choix (voir MenuRow, case à cocher "avec dessert" côté client).
+  // priceAmount reste le prix "avec dessert" par défaut dans ce cas.
+  priceAmountNoDessert: numeric("price_amount_no_dessert", { precision: 10, scale: 2 }),
   currency: text("currency").notNull().default("CHF"),
   photoUrl: text("photo_url"),
   availableBoutique: boolean("available_boutique").notNull().default(true),
@@ -350,6 +355,11 @@ export const orderItems = pgTable("order_items", {
   productNameSnapshot: text("product_name_snapshot").notNull(),
   unitPriceSnapshot: numeric("unit_price_snapshot", { precision: 10, scale: 2 }).notNull(),
   quantity: integer("quantity").notNull(),
+  // NULL = produit sans option dessert. true/false = choix fait sur CETTE
+  // ligne — purement informatif pour l'affichage (récap, dashboard, PDF) :
+  // le prix réellement facturé reste unitPriceSnapshot, déjà résolu côté
+  // serveur au moment de la commande (jamais recalculé depuis ce champ).
+  withDessert: boolean("with_dessert"),
 }, (t) => [
   check("order_item_quantity_check", sql`${t.quantity} > 0`),
   tenantIsolationPolicyViaExists(

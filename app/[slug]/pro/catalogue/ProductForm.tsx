@@ -103,6 +103,23 @@ export function ProductForm({
       </div>
 
       <div>
+        <label className="block text-xs text-ink-muted mb-1">Prix sans dessert (CHF, optionnel)</label>
+        <input
+          name="priceAmountNoDessert"
+          type="number"
+          step="0.05"
+          min="0"
+          defaultValue={product?.priceAmountNoDessert ?? ""}
+          placeholder="Laisser vide si un seul prix"
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
+        />
+        <p className="text-xs text-ink-muted mt-1">
+          Renseigné, une case &laquo;&nbsp;avec dessert&nbsp;&raquo; apparaît côté client et ajuste le prix
+          (au-dessus, le prix avec dessert).
+        </p>
+      </div>
+
+      <div>
         <label className="block text-xs text-ink-muted mb-1">Sous-titre de section (optionnel)</label>
         <input
           name="sectionTitle"

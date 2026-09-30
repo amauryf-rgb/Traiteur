@@ -3,12 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CatalogueHeader } from "./CatalogueHeader";
-import { saveCheckoutState, useCart } from "@/lib/cart";
+import { saveCheckoutState, useCart, useGuestCount } from "@/lib/cart";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
 import { Button } from "@/components/ui/Button";
 import { Ornament } from "@/components/Ornament";
-import { GRAIN_STYLE, INK_MUTED, PAPER_LINE } from "@/lib/theme";
+import { GRAIN_STYLE, INK_MUTED, PAPER_LINE, accentTint } from "@/lib/theme";
 import { reserveSlot } from "./actions";
 import { TraiteurCalendar } from "./TraiteurCalendar";
 import { MenuRow } from "./MenuRow";
@@ -23,13 +23,54 @@ type Establishment = { name: string; tagline: string | null; accentColor: string
 // Chevron ré-ajouté à la main en arrière-plan plutôt qu'en classe Tailwind
 // arbitraire, pour éviter les soucis d'échappement de guillemets d'une data
 // URI dans une className.
-const SELECT_CLASS_NAME = "appearance-none bg-transparent bg-no-repeat text-sm outline-none w-full pr-5";
+const SELECT_CLASS_NAME = "appearance-none bg-transparent bg-no-repeat font-serif text-[17px] outline-none w-full pr-5";
 const SELECT_ARROW_STYLE = {
   backgroundImage:
     "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b5d55' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")",
   backgroundPosition: "right center",
   backgroundSize: "12px",
 };
+
+// Icônes fines (trait, pas de fond plein) — mêmes tracés que la démo widget
+// et l'écran de choix (crate pour Retrait), cohérence de charte.
+const RETRAIT_ICON = (
+  <>
+    <rect x="4" y="5" width="16" height="15" rx="1.5" />
+    <path d="M4 9.5h16" />
+    <path d="M8 3v3M16 3v3" />
+  </>
+);
+const HEURE_ICON = (
+  <>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </>
+);
+const PEOPLE_ICON = (
+  <>
+    <circle cx="12" cy="8" r="3.2" />
+    <path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" />
+  </>
+);
+const INFO_ICON = (
+  <>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v.01M11 11h1v5h1" />
+  </>
+);
+
+function FieldIcon({ children, accentColor }: { children: React.ReactNode; accentColor: string }) {
+  return (
+    <span
+      className="flex items-center justify-center w-[34px] h-[34px] rounded-full shrink-0"
+      style={{ backgroundColor: accentTint(accentColor) }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </span>
+  );
+}
 
 const EYEBROW: Record<OrderType, string> = {
   boutique: "Boutique du jour",
@@ -59,6 +100,7 @@ export function CatalogueClient({
 }) {
   const router = useRouter();
   const cart = useCart(slug, orderType);
+  const { guestCount, setGuestCount } = useGuestCount(slug, orderType);
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [selectedTime, setSelectedTime] = useState(times[0] ?? "");
   const [activeCategory, setActiveCategory] = useState("Tout");
@@ -66,6 +108,28 @@ export function CatalogueClient({
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Champ texte libre pour la saisie directe du nombre de personnes (en plus
+  // des +/-) : état local pour permettre de vider le champ le temps de taper
+  // une nouvelle valeur, sans que ça retombe aussitôt sur "1". Se resynchronise
+  // avec guestCount (source de vérité, localStorage) via le pattern React
+  // "Adjusting state when a prop changes" plutôt qu'un effet — même logique
+  // que le choix dessert dans MenuRow.
+  const [guestCountInput, setGuestCountInput] = useState(String(guestCount));
+  const [syncedGuestCount, setSyncedGuestCount] = useState(guestCount);
+  if (guestCount !== syncedGuestCount) {
+    setSyncedGuestCount(guestCount);
+    setGuestCountInput(String(guestCount));
+  }
+
+  function commitGuestCountInput() {
+    const parsed = parseInt(guestCountInput, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setGuestCount(parsed);
+    } else {
+      setGuestCountInput(String(guestCount));
+    }
+  }
 
   // Ordre des onglets = categories.sortOrder (configuré par le pro), pas
   // l'ordre d'apparition des produits en base qui serait arbitraire.
@@ -84,6 +148,15 @@ export function CatalogueClient({
 
   const visibleProducts = activeCategory === "Tout" ? products : products.filter((p) => p.categoryName === activeCategory);
   const accentColor = establishment.accentColor ?? "#1a1a1a";
+
+  // Quantité proposée par défaut à l'ajout d'une nouvelle formule : le solde
+  // de convives pas encore affecté à une autre formule, pas bêtement le
+  // nombre de personnes global repris tel quel à chaque ajout — sinon,
+  // ajouter une 2e formule alors qu'une 1re a déjà 25 personnes (pour 25
+  // convives au total) proposerait encore 25, ce qui donnerait 50 au total.
+  // Plancher à 1 (jamais 0, qui ramènerait la ligne à l'état "pas ajoutée")
+  // pour laisser la main au client sans jamais bloquer un ajout.
+  const remainingGuests = Math.max(1, guestCount - cart.totalItems);
 
   // Numérotation continue (01, 02, 03…) sur l'ensemble des produits visibles,
   // jamais remise à zéro par section — comme dans la démo, où les sections ne
@@ -114,8 +187,18 @@ export function CatalogueClient({
     return cart.items.find((line) => line.productId === productId)?.quantity ?? 0;
   }
 
-  function updateQuantity(product: CatalogueProduct, quantity: number) {
-    cart.setQuantity({ id: product.id, name: product.name, price: Number(product.priceAmount) }, Math.max(0, quantity));
+  // Coché par défaut (avant tout ajout) — reflète ensuite fidèlement le choix
+  // déjà fait pour cette ligne, y compris après un rechargement de page : sans
+  // ça, la case revenait toujours à "avec dessert" au remontage du composant
+  // alors que le panier (source de vérité) gardait le bon prix.
+  function withDessertFor(productId: string) {
+    return cart.items.find((line) => line.productId === productId)?.withDessert ?? true;
+  }
+
+  function updateQuantity(product: CatalogueProduct, quantity: number, withDessert?: boolean) {
+    const price =
+      withDessert === false && product.priceAmountNoDessert != null ? Number(product.priceAmountNoDessert) : Number(product.priceAmount);
+    cart.setQuantity({ id: product.id, name: product.name, price, withDessert }, Math.max(0, quantity));
   }
 
   function handleContinue() {
@@ -166,6 +249,8 @@ export function CatalogueClient({
     );
   }
 
+  const fieldLabelClass = "block text-[10.5px] uppercase tracking-wide";
+
   const dateTimeSelector =
     orderType === "traiteur" && dateView === "calendrier" ? (
       <>
@@ -177,58 +262,67 @@ export function CatalogueClient({
           accentColor={accentColor}
           closedWeekdays={closedWeekdays}
         />
-        <label className="block px-6 py-3 text-left" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
-          <span className="block text-xs" style={{ color: INK_MUTED }}>Heure</span>
-          <select
-            className={SELECT_CLASS_NAME}
-            style={SELECT_ARROW_STYLE}
-            value={selectedTime}
-            onChange={(e) => setSelectedTime(e.target.value)}
-          >
-            {times.map((time) => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
-        </label>
-      </>
-    ) : (
-      <div className="grid grid-cols-2" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
-        <label className="px-4 py-3 text-left" style={{ borderRight: `1px solid ${PAPER_LINE}` }}>
-          <span className="block text-xs" style={{ color: INK_MUTED }}>Retrait</span>
-          {orderType === "boutique" ? (
-            <span className="text-sm">Aujourd&apos;hui</span>
-          ) : (
+        <div className="flex items-center gap-2.5 px-6 py-2.5" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
+          <FieldIcon accentColor={accentColor}>{HEURE_ICON}</FieldIcon>
+          <label className="flex-1 text-left">
+            <span className={fieldLabelClass} style={{ color: INK_MUTED }}>Heure</span>
             <select
               className={SELECT_CLASS_NAME}
               style={SELECT_ARROW_STYLE}
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
             >
-              {dates.map((date) => (
-                <option key={date} value={date}>
-                  {formatDateLabel(date)}
+              {times.map((time) => (
+                <option key={time} value={time}>
+                  {time}
                 </option>
               ))}
             </select>
-          )}
-        </label>
-        <label className="px-4 py-3 text-left">
-          <span className="block text-xs" style={{ color: INK_MUTED }}>Heure</span>
-          <select
-            className={SELECT_CLASS_NAME}
-            style={SELECT_ARROW_STYLE}
-            value={selectedTime}
-            onChange={(e) => setSelectedTime(e.target.value)}
-          >
-            {times.map((time) => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
-        </label>
+          </label>
+        </div>
+      </>
+    ) : (
+      <div className="grid grid-cols-2" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
+        <div className="flex items-center gap-2.5 px-4 py-2.5" style={{ borderRight: `1px solid ${PAPER_LINE}` }}>
+          <FieldIcon accentColor={accentColor}>{RETRAIT_ICON}</FieldIcon>
+          <label className="flex-1 text-left">
+            <span className={fieldLabelClass} style={{ color: INK_MUTED }}>Retrait</span>
+            {orderType === "boutique" ? (
+              <span className="block font-serif text-[17px]">Aujourd&apos;hui</span>
+            ) : (
+              <select
+                className={SELECT_CLASS_NAME}
+                style={SELECT_ARROW_STYLE}
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              >
+                {dates.map((date) => (
+                  <option key={date} value={date}>
+                    {formatDateLabel(date)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+        </div>
+        <div className="flex items-center gap-2.5 px-4 py-2.5">
+          <FieldIcon accentColor={accentColor}>{HEURE_ICON}</FieldIcon>
+          <label className="flex-1 text-left">
+            <span className={fieldLabelClass} style={{ color: INK_MUTED }}>Heure</span>
+            <select
+              className={SELECT_CLASS_NAME}
+              style={SELECT_ARROW_STYLE}
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+            >
+              {times.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
     );
 
@@ -258,7 +352,12 @@ export function CatalogueClient({
         <p className="text-xs uppercase tracking-widest mb-3" style={{ color: accentColor }}>
           {EYEBROW[orderType]}
         </p>
-        <h1 className="font-serif text-3xl sm:text-4xl">{establishment.name}</h1>
+        {establishment.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={establishment.logoUrl} alt={establishment.name} className="h-14 sm:h-16 w-auto mx-auto object-contain" />
+        ) : (
+          <h1 className="font-serif text-3xl sm:text-4xl">{establishment.name}</h1>
+        )}
       </div>
 
       <div className="max-w-4xl mx-auto px-6">
@@ -280,6 +379,65 @@ export function CatalogueClient({
         )}
 
         <div style={{ borderTop: `1px solid ${PAPER_LINE}` }}>{dateTimeSelector}</div>
+
+        {orderType === "traiteur" && (
+          <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
+            <span className={fieldLabelClass} style={{ color: INK_MUTED }}>
+              Nombre de personnes
+            </span>
+            <div className="flex items-center justify-center gap-[22px] mt-3">
+              <button
+                type="button"
+                onClick={() => setGuestCount(guestCount - 1)}
+                aria-label="Retirer une personne"
+                className="flex items-center justify-center w-10 h-10 rounded-full font-serif text-xl shrink-0"
+                style={{ border: `1px solid ${accentColor}`, color: accentColor }}
+              >
+                −
+              </button>
+              <div className="flex flex-col items-center gap-0.5 min-w-[84px]">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={guestCountInput}
+                  onChange={(e) => setGuestCountInput(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={commitGuestCountInput}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  aria-label="Nombre de personnes (cliquer pour saisir directement)"
+                  className="font-serif italic text-[38px] leading-none text-center bg-transparent outline-none w-[70px] border-b-0 border-dotted focus:border-b"
+                  style={{ color: accentColor, borderColor: accentColor }}
+                />
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1.6" className="opacity-55 mt-0.5">
+                  {PEOPLE_ICON}
+                </svg>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGuestCount(guestCount + 1)}
+                aria-label="Ajouter une personne"
+                className="flex items-center justify-center w-10 h-10 rounded-full font-serif text-xl shrink-0"
+                style={{ border: `1px solid ${accentColor}`, color: accentColor }}
+              >
+                +
+              </button>
+            </div>
+            <div
+              className="flex items-start gap-2 mt-4 px-3.5 py-2.5 rounded-md text-xs text-left leading-relaxed"
+              style={{ backgroundColor: accentTint(accentColor), color: INK_MUTED }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1.5" className="shrink-0 mt-0.5">
+                {INFO_ICON}
+              </svg>
+              <span>
+                Les prix du catalogue sont par personne — la quantité de chaque formule s&apos;ajuste automatiquement
+                selon ce nombre. Il est possible de choisir plusieurs formules pour une commande.
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap justify-center gap-6 py-4" style={{ borderBottom: `1px solid ${PAPER_LINE}` }}>
           {categories.map((category) => (
@@ -313,10 +471,13 @@ export function CatalogueClient({
                     product={product}
                     index={productIndex.get(product.id) ?? 0}
                     quantity={quantityFor(product.id)}
+                    initialWithDessert={withDessertFor(product.id)}
+                    defaultQuantity={orderType === "traiteur" ? remainingGuests : 1}
+                    unitLabel={orderType === "traiteur" ? "pers." : undefined}
                     accentColor={accentColor}
                     isOpen={openProductId === product.id}
                     onToggleOpen={() => setOpenProductId((prev) => (prev === product.id ? null : product.id))}
-                    onUpdateQuantity={(quantity) => updateQuantity(product, quantity)}
+                    onUpdateQuantity={(quantity, withDessert) => updateQuantity(product, quantity, withDessert)}
                   />
                 ))}
               </div>
@@ -327,8 +488,20 @@ export function CatalogueClient({
           )}
         </div>
 
+        {orderType === "traiteur" && (
+          <div className="px-6 pt-4 text-center text-xs leading-relaxed" style={{ color: INK_MUTED, borderTop: `1px solid ${PAPER_LINE}` }}>
+            <p>
+              Nous nous tenons à votre disposition pour vous renseigner sur les ingrédients présents dans nos plats
+              qui sont susceptibles de provoquer des allergies ou des intolérances.
+            </p>
+            <p className="mt-1.5">
+              Provenances — Poulet : Suisse · Bœuf : Suisse · Charcuterie : Italie · Pain/Focaccia : Suisse.
+            </p>
+          </div>
+        )}
+
         {signatureName && (
-          <div className="text-center pt-2 pb-6" style={{ borderTop: `1px solid ${PAPER_LINE}` }}>
+          <div className="text-center pt-2 pb-6" style={{ borderTop: orderType === "traiteur" ? "none" : `1px solid ${PAPER_LINE}` }}>
             <p className="font-serif italic text-[15px] pt-4" style={{ color: INK_MUTED }}>
               Buon appetito, {signatureName}.
             </p>

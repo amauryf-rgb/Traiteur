@@ -90,6 +90,7 @@ export function RecapitulatifClient({
           <div key={line.productId} className="flex justify-between py-3 text-sm">
             <span>
               {line.name}
+              {line.withDessert !== undefined ? ` (${line.withDessert ? "avec" : "sans"} dessert)` : ""}
               {line.quantity > 1 ? ` ×${line.quantity}` : ""}
             </span>
             <span className="font-medium">{formatCHF(line.unitPrice * line.quantity)}</span>

@@ -61,7 +61,10 @@ export function OrderEditClient({
           return (
             <div key={item.id} className="py-4 flex justify-between items-center gap-3">
               <div>
-                <p className="text-sm font-medium">{item.productNameSnapshot}</p>
+                <p className="text-sm font-medium">
+                  {item.productNameSnapshot}
+                  {item.withDessert !== null ? ` (${item.withDessert ? "avec" : "sans"} dessert)` : ""}
+                </p>
                 <p className="text-xs text-ink-muted">
                   {formatCHF(Number(item.unitPriceSnapshot))} / pièce
                   {quantity !== item.quantity ? ` — ${item.quantity} → ${quantity}` : ""}

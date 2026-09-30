@@ -109,6 +109,17 @@ export async function saveProduct(
   const price = Number(priceAmount);
   if (!Number.isFinite(price) || price < 0) return { error: "Prix invalide." };
 
+  // Optionnel : seules certaines formules traiteur (buffet, cocktail, menu)
+  // proposent un prix "sans dessert" — vide/absent pour l'immense majorité
+  // des produits, qui n'ont qu'un seul prix.
+  const priceAmountNoDessertRaw = String(formData.get("priceAmountNoDessert") ?? "").trim();
+  let priceAmountNoDessert: string | null = null;
+  if (priceAmountNoDessertRaw) {
+    const priceNoDessert = Number(priceAmountNoDessertRaw);
+    if (!Number.isFinite(priceNoDessert) || priceNoDessert < 0) return { error: "Prix sans dessert invalide." };
+    priceAmountNoDessert = priceNoDessert.toFixed(2);
+  }
+
   const description = String(formData.get("description") ?? "").trim() || null;
   const sectionTitle = String(formData.get("sectionTitle") ?? "").trim() || null;
   const isActive = formData.get("isActive") === "on";
@@ -136,6 +147,7 @@ export async function saveProduct(
     const values = {
       name,
       priceAmount: price.toFixed(2),
+      priceAmountNoDessert,
       description,
       sectionTitle,
       photoUrl: photoResult.url,

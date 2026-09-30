@@ -129,7 +129,10 @@ export function ClientInvoiceDocument({
           </View>
           {items.map((item) => (
             <View key={item.id} style={styles.tableRow}>
-              <Text style={styles.colDescription}>{item.productNameSnapshot}</Text>
+              <Text style={styles.colDescription}>
+                {item.productNameSnapshot}
+                {item.withDessert !== null ? ` (${item.withDessert ? "avec" : "sans"} dessert)` : ""}
+              </Text>
               <Text style={styles.colQty}>{item.quantity}</Text>
               <Text style={styles.colUnitPrice}>{formatCHF(Number(item.unitPriceSnapshot))}</Text>
               <Text style={styles.colAmount}>{formatCHF(Number(item.unitPriceSnapshot) * item.quantity)}</Text>

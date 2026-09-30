@@ -227,9 +227,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
         throw new UnavailableProductsError();
       }
 
+      // Résolu uniquement depuis les valeurs de la base (product.priceAmount /
+      // priceAmountNoDessert) — line.withDessert ne fait que choisir LAQUELLE
+      // des deux, jamais un prix fourni par le client lui-même.
+      const resolveUnitPrice = (product: (typeof dbProducts)[number], withDessert: boolean | undefined) =>
+        withDessert === false && product.priceAmountNoDessert != null ? product.priceAmountNoDessert : product.priceAmount;
+
       const totalAmount = input.items.reduce((sum, line) => {
         const product = dbProducts.find((p) => p.id === line.productId)!;
-        return sum + Number(product.priceAmount) * line.quantity;
+        return sum + Number(resolveUnitPrice(product, line.withDessert)) * line.quantity;
       }, 0);
 
       const paymentMode = orderType === "boutique" ? "full" : input.paymentMode;
@@ -273,8 +279,9 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
             orderId: order.id,
             productId: product.id,
             productNameSnapshot: product.name,
-            unitPriceSnapshot: product.priceAmount,
+            unitPriceSnapshot: resolveUnitPrice(product, line.withDessert),
             quantity: line.quantity,
+            withDessert: product.priceAmountNoDessert != null ? (line.withDessert ?? true) : null,
           };
         })
       );
