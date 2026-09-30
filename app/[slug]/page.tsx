@@ -67,55 +67,53 @@ export default async function EstablishmentEntryPage({ params }: { params: Promi
   );
 
   return (
-    <div className="min-h-screen bg-stone-100">
-      <main className="max-w-md lg:max-w-2xl mx-auto my-10 rounded-2xl overflow-hidden shadow-[0_2px_14px_rgba(0,0,0,0.10)]">
-        <HeroBand name={establishment.name} line="Que souhaitez-vous faire ?" bannerUrl={establishment.bannerUrl} corner={corner} />
-        <Tricolor />
-        <div style={GRAIN_STYLE}>
-          <div className="px-[18px] py-[18px] flex flex-col gap-3">
-            {UNIVERSES.map((universe) => (
-              <Link
-                key={universe.type}
-                href={`/${slug}/${universe.type}`}
-                className="flex items-center gap-3.5 rounded-b-lg px-4 py-4 transition-colors hover:bg-black/[0.02]"
-                style={{ border: `1px solid ${PAPER_LINE}`, borderTop: `2px solid ${accentColor}` }}
+    <div className="min-h-screen" style={GRAIN_STYLE}>
+      <HeroBand name={establishment.name} line="Que souhaitez-vous faire ?" bannerUrl={establishment.bannerUrl} corner={corner} />
+      <Tricolor />
+      <div className="max-w-2xl mx-auto">
+        <div className="px-[18px] py-[18px] flex flex-col gap-3">
+          {UNIVERSES.map((universe) => (
+            <Link
+              key={universe.type}
+              href={`/${slug}/${universe.type}`}
+              className="flex items-center gap-3.5 rounded-b-lg px-4 py-4 transition-colors hover:bg-black/[0.02]"
+              style={{ border: `1px solid ${PAPER_LINE}`, borderTop: `2px solid ${accentColor}` }}
+            >
+              <span
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-full shrink-0"
+                style={{ backgroundColor: accentTint(accentColor) }}
               >
-                <span
-                  className="flex items-center justify-center w-[38px] h-[38px] rounded-full shrink-0"
-                  style={{ backgroundColor: accentTint(accentColor) }}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={accentColor}
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={accentColor}
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {universe.icon}
-                  </svg>
-                </span>
-                <div className="flex-1">
-                  <p className="font-serif text-[17px]" style={{ color: INK }}>
-                    {universe.title}
-                  </p>
-                  <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: INK_MUTED }}>
-                    {universe.description}
-                  </p>
-                </div>
-                <span className="font-serif italic text-base" style={{ color: accentColor }}>
-                  →
-                </span>
-              </Link>
-            ))}
-          </div>
-          <p className="font-serif italic text-center text-[11.5px] px-[18px] pb-[18px]" style={{ color: INK_MUTED }}>
-            Pas besoin de compte pour commander
-          </p>
+                  {universe.icon}
+                </svg>
+              </span>
+              <div className="flex-1">
+                <p className="font-serif text-[17px]" style={{ color: INK }}>
+                  {universe.title}
+                </p>
+                <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: INK_MUTED }}>
+                  {universe.description}
+                </p>
+              </div>
+              <span className="font-serif italic text-base" style={{ color: accentColor }}>
+                →
+              </span>
+            </Link>
+          ))}
         </div>
-      </main>
+        <p className="font-serif italic text-center text-[11.5px] px-[18px] pb-[18px]" style={{ color: INK_MUTED }}>
+          Pas besoin de compte pour commander
+        </p>
+      </div>
     </div>
   );
 }
