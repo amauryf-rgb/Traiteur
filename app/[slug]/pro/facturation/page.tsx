@@ -12,7 +12,6 @@ import { buttonClassName } from "@/components/ui/Button";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { InvoiceGroupForm } from "./InvoiceGroupForm";
 import { ManualInvoiceForm } from "./ManualInvoiceForm";
-import { EntityBillingForm } from "./EntityBillingForm";
 
 function currentMonthRange() {
   const now = new Date();
@@ -82,19 +81,13 @@ export default async function FacturationPage({
       {pdfError && (
         <p className="mx-6 mt-4 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
           Impossible de générer le PDF : les coordonnées de facturation de{" "}
-          <strong>{entityName.get(pdfError) ?? "cette entité"}</strong> sont incomplètes. Complétez-les ci-dessous
+          <strong>{entityName.get(pdfError) ?? "cette entité"}</strong> sont incomplètes. Complétez-les depuis{" "}
+          <Link href={`/${slug}/pro/etablissement?tab=entites`} className="underline">
+            Établissement → Entités juridiques
+          </Link>{" "}
           (adresse et IBAN sont requis).
         </p>
       )}
-
-      <div className="px-6 py-4 border-b border-stone-200">
-        <p className="text-xs text-stone-400 mb-3">Coordonnées de facturation par entité</p>
-        <div className="flex flex-col gap-2">
-          {entities.map((entity) => (
-            <EntityBillingForm key={entity.id} slug={slug} entity={entity} accentColor={accentColor} />
-          ))}
-        </div>
-      </div>
 
       <form className="flex items-center gap-3 px-6 py-3 border-b border-stone-200 text-xs flex-wrap">
         <span className="text-stone-400">Période</span>

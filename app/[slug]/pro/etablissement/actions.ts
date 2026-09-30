@@ -4,11 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
-import { establishments } from "@/lib/db/schema";
+import { establishments, legalEntities } from "@/lib/db/schema";
+import { getStaffLegalEntityId } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/lib/tenant";
 import { establishmentMediaKeyFromUrl, getEstablishmentMediaStore, ESTABLISHMENT_MEDIA_ROUTE_PREFIX } from "@/lib/blobs";
 
 export type IdentityFormState = { error?: string };
+export type BillingProfileState = { error?: string };
 
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -23,6 +25,27 @@ async function requireOwner(slug: string): Promise<{ establishmentId: string; co
     redirect(`/${slug}/pro/login`);
   }
   return { establishmentId: staffTenant.session.establishmentId, context: staffTenant.context };
+}
+
+// Cloisonnement Richard/boutique, Michele/traiteur — même principe que
+// Fermetures et Dossier (allowedEntityId vient de staff_members.legal_entity_id,
+// jamais d'un champ de formulaire) : un owner scopé ne doit ni voir ni
+// modifier les coordonnées de facturation de l'autre entité, contrairement à
+// Équipe qui reste volontairement établissement-large.
+async function requireOwnerForEntity(
+  slug: string,
+  entityId: string
+): Promise<{ establishmentId: string; context: TenantContext }> {
+  const staffTenant = await requireStaffTenantContext();
+  if (!staffTenant || staffTenant.session.role !== "owner") {
+    redirect(`/${slug}/pro/login`);
+  }
+  const { establishmentId, context } = { establishmentId: staffTenant.session.establishmentId, context: staffTenant.context };
+  const allowedEntityId = await runAsTenant(context, (tx) => getStaffLegalEntityId(tx, staffTenant.session.staffMemberId));
+  if (allowedEntityId && allowedEntityId !== entityId) {
+    throw new Error("Cette entité n'est pas gérée par ce compte.");
+  }
+  return { establishmentId, context };
 }
 
 // Même logique que resolvePhotoUrl (app/[slug]/pro/catalogue/actions.ts),
@@ -88,5 +111,49 @@ export async function updateEstablishmentIdentity(
   revalidatePath(`/${slug}`);
   revalidatePath(`/${slug}/boutique`);
   revalidatePath(`/${slug}/traiteur`);
+  return {};
+}
+
+// Déplacé depuis facturation/actions.ts : ces coordonnées ne servent pas
+// qu'aux factures inter-entités, elles apparaissent aussi sur les factures
+// clients (voir lib/pdf/ClientInvoiceDocument.tsx) — leur place naturelle est
+// l'identité de l'établissement, pas un écran de facturation particulier.
+export async function updateEntityBillingProfile(
+  slug: string,
+  entityId: string,
+  _prevState: BillingProfileState,
+  formData: FormData
+): Promise<BillingProfileState> {
+  const { context } = await requireOwnerForEntity(slug, entityId);
+
+  const vatNumber = String(formData.get("vatNumber") ?? "").trim();
+  const addressLine1 = String(formData.get("addressLine1") ?? "").trim();
+  const addressLine2 = String(formData.get("addressLine2") ?? "").trim();
+  const addressPostalCode = String(formData.get("addressPostalCode") ?? "").trim();
+  const addressCity = String(formData.get("addressCity") ?? "").trim();
+  const addressCountry = String(formData.get("addressCountry") ?? "").trim();
+  const ibanNumber = String(formData.get("ibanNumber") ?? "").trim();
+  const bankName = String(formData.get("bankName") ?? "").trim();
+
+  const updated = await runAsTenant(context, (tx) =>
+    tx
+      .update(legalEntities)
+      .set({
+        vatNumber: vatNumber || null,
+        addressLine1: addressLine1 || null,
+        addressLine2: addressLine2 || null,
+        addressPostalCode: addressPostalCode || null,
+        addressCity: addressCity || null,
+        addressCountry: addressCountry || null,
+        ibanNumber: ibanNumber || null,
+        bankName: bankName || null,
+      })
+      .where(eq(legalEntities.id, entityId))
+      .returning({ id: legalEntities.id })
+  );
+
+  if (updated.length === 0) return { error: "Entité introuvable." };
+
+  revalidatePath(`/${slug}/pro/etablissement`);
   return {};
 }

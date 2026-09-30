@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 
-export type EtablissementTabKey = "identite" | "equipe" | "fermetures";
+export type EtablissementTabKey = "identite" | "entites" | "equipe" | "fermetures";
 
 const TABS: { key: EtablissementTabKey; label: string }[] = [
   { key: "identite", label: "Identité visuelle" },
+  { key: "entites", label: "Entités juridiques" },
   { key: "equipe", label: "Équipe" },
   { key: "fermetures", label: "Fermetures" },
 ];
