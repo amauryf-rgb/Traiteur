@@ -10,7 +10,7 @@ export default async function ProLoginPage({ params }: { params: Promise<{ slug:
   return (
     <LoginForm
       slug={slug}
-      establishment={{ name: establishment.name, tagline: establishment.tagline, accentColor: establishment.accentColor }}
+      establishment={{ name: establishment.name, tagline: establishment.tagline, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
     />
   );
 }

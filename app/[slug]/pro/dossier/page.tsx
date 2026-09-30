@@ -59,7 +59,7 @@ export default async function DossierPage({
   return (
     <ProShell
       slug={slug}
-      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
       staffName={staffName}
       isOwner
       active="dossier"

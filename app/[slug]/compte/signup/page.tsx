@@ -10,7 +10,7 @@ export default async function ClientSignupPage({ params }: { params: Promise<{ s
   return (
     <SignupForm
       slug={slug}
-      establishment={{ name: establishment.name, tagline: establishment.tagline, accentColor: establishment.accentColor }}
+      establishment={{ name: establishment.name, tagline: establishment.tagline, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
     />
   );
 }

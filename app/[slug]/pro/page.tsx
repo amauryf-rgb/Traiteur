@@ -56,7 +56,7 @@ export default async function ProDashboardPage({
     return (
       <EmployeePlanning
         slug={slug}
-        establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+        establishment={{ name: establishment.name, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
         staffName={session.name}
         tasks={tasks}
       />
@@ -78,7 +78,7 @@ export default async function ProDashboardPage({
   return (
     <ProShell
       slug={slug}
-      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
       staffName={session.name}
       isOwner={isOwner}
       active="planning"

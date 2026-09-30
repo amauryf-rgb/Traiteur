@@ -27,7 +27,7 @@ export function ProHeader({
   active,
 }: {
   slug: string;
-  establishment: { name: string; accentColor: string | null };
+  establishment: { name: string; accentColor: string | null; logoUrl?: string | null };
   staffName: string;
   isOwner: boolean;
   active: ProNavKey;
@@ -36,9 +36,14 @@ export function ProHeader({
     <header className="text-white" style={{ backgroundColor: BRAND_BLACK }}>
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-serif text-sm shrink-0">
-            {initials(establishment.name)}
-          </div>
+          {establishment.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={establishment.logoUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-serif text-sm shrink-0">
+              {initials(establishment.name)}
+            </div>
+          )}
           <div>
             <p className="font-serif text-sm leading-tight">{establishment.name}</p>
             <p className="text-xs text-white/70 leading-tight">{staffName}</p>

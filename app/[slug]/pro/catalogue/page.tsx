@@ -33,7 +33,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
   return (
     <ProShell
       slug={slug}
-      establishment={{ name: establishment.name, accentColor: establishment.accentColor }}
+      establishment={{ name: establishment.name, accentColor: establishment.accentColor, logoUrl: establishment.logoUrl }}
       staffName={session.name}
       isOwner={session.role === "owner"}
       active="catalogue"
@@ -63,9 +63,14 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
 
           return (
             <div key={product.id} className="px-6 py-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-stone-50 flex items-center justify-center text-[10px] text-stone-300 shrink-0 uppercase">
-                Photo
-              </div>
+              {product.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={product.photoUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-stone-50 flex items-center justify-center text-[10px] text-stone-300 shrink-0 uppercase">
+                  Photo
+                </div>
+              )}
 
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate ${product.isActive ? "" : "text-ink-muted line-through"}`}>{product.name}</p>

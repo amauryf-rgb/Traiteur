@@ -12,7 +12,7 @@ export function LoginForm({
   establishment,
 }: {
   slug: string;
-  establishment: { name: string; tagline: string | null; accentColor: string | null };
+  establishment: { name: string; tagline: string | null; accentColor: string | null; logoUrl?: string | null };
 }) {
   const loginForEstablishment = login.bind(null, slug);
   const [state, formAction, isPending] = useActionState(loginForEstablishment, initialState);

@@ -68,7 +68,13 @@ export default async function EstablishmentEntryPage({ params }: { params: Promi
 
   return (
     <div className="min-h-screen" style={GRAIN_STYLE}>
-      <HeroBand name={establishment.name} line="Que souhaitez-vous faire ?" bannerUrl={establishment.bannerUrl} corner={corner} />
+      <HeroBand
+        name={establishment.name}
+        line="Que souhaitez-vous faire ?"
+        bannerUrl={establishment.bannerUrl}
+        logoUrl={establishment.logoUrl}
+        corner={corner}
+      />
       <Tricolor />
       <div className="max-w-2xl mx-auto">
         <div className="px-[18px] py-[18px] flex flex-col gap-3">

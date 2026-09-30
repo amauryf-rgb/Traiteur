@@ -10,7 +10,7 @@ export function ProShell({
   children,
 }: {
   slug: string;
-  establishment: { name: string; accentColor: string | null };
+  establishment: { name: string; accentColor: string | null; logoUrl?: string | null };
   staffName: string;
   isOwner: boolean;
   active: ProNavKey;

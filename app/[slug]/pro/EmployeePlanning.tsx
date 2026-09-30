@@ -13,7 +13,7 @@ export function EmployeePlanning({
   tasks,
 }: {
   slug: string;
-  establishment: { name: string; accentColor: string | null };
+  establishment: { name: string; accentColor: string | null; logoUrl?: string | null };
   staffName: string;
   tasks: StaffTask[];
 }) {
