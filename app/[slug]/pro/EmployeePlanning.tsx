@@ -25,7 +25,7 @@ export function EmployeePlanning({
     <ProShell slug={slug} establishment={establishment} staffName={staffName} isOwner={false} active="planning">
       <div className="max-w-md">
       <ProPanel>
-      <p className="px-6 py-3 text-xs text-stone-400 border-b border-stone-200">Mes tâches — aujourd&apos;hui</p>
+      <p className="px-6 py-3 text-xs text-ink-muted border-b border-stone-200">Mes tâches — aujourd&apos;hui</p>
 
       <div className="divide-y divide-stone-200">
         {tasks.map((task) => {
@@ -54,14 +54,14 @@ export function EmployeePlanning({
               </form>
               <div className="flex-1 min-w-0">
                 {task.kind === "order" && (
-                  <p className="text-[11px] uppercase tracking-wide text-stone-400 mb-0.5">Commande entière</p>
+                  <p className="text-[11px] uppercase tracking-wide text-ink-muted mb-0.5">Commande entière</p>
                 )}
-                <p className={`text-sm font-medium ${done ? "text-stone-400 line-through" : ""}`}>
+                <p className={`text-sm font-medium ${done ? "text-ink-muted line-through" : ""}`}>
                   {task.kind === "lot"
                     ? `${task.productName} × ${task.quantity}`
                     : task.items.map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
                 </p>
-                <p className={`text-xs mt-0.5 ${isMostUrgent && !done ? "text-amber-700 font-medium" : "text-stone-400"}`}>
+                <p className={`text-xs mt-0.5 ${isMostUrgent && !done ? "text-amber-700 font-medium" : "text-ink-muted"}`}>
                   Prêt pour {task.readyByTime.slice(0, 5).replace(":", "h")}
                   {isMostUrgent && !done ? " · à préparer en priorité" : ""}
                 </p>
@@ -69,7 +69,7 @@ export function EmployeePlanning({
             </div>
           );
         })}
-        {tasks.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucune tâche assignée aujourd&apos;hui.</p>}
+        {tasks.length === 0 && <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucune tâche assignée aujourd&apos;hui.</p>}
       </div>
       </ProPanel>
       </div>

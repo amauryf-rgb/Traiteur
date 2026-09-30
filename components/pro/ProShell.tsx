@@ -1,4 +1,5 @@
 import { ProHeader, type ProNavKey } from "./ProHeader";
+import { GRAIN_STYLE } from "@/lib/theme";
 
 export function ProShell({
   slug,
@@ -16,7 +17,7 @@ export function ProShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen" style={GRAIN_STYLE}>
       <ProHeader slug={slug} establishment={establishment} staffName={staffName} isOwner={isOwner} active={active} />
       <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
     </div>

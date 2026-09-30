@@ -16,6 +16,7 @@ import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/li
 import { aggregateByProduct } from "@/lib/aggregate";
 import { closureDatesForType, getClosedDatesInRange, getMonthBounds, getMonthGrid, getTodayISO, monthOfDate } from "@/lib/slots";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
+import { INK_MUTED } from "@/lib/theme";
 import { EmployeePlanning } from "./EmployeePlanning";
 import { DayView } from "./DayView";
 import { MonthView } from "./MonthView";
@@ -88,14 +89,14 @@ export default async function ProDashboardPage({
             <Link
               href={`/${slug}/pro?date=${date}${showAll && scope ? "&all=1" : ""}`}
               className="pb-1"
-              style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+              style={view === "day" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: INK_MUTED }}
             >
               Jour
             </Link>
             <Link
               href={`/${slug}/pro?view=month&date=${date}`}
               className="pb-1"
-              style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: "#a8a29e" }}
+              style={view === "month" ? { borderBottom: `2px solid ${accentColor}`, color: accentColor } : { color: INK_MUTED }}
             >
               Mois
             </Link>
@@ -106,7 +107,7 @@ export default async function ProDashboardPage({
               Michele/Traiteur). Toujours possible de repasser en "Voir tout" :
               on filtre l'affichage par défaut, on ne retire jamais l'accès. */}
           {view === "day" && scope && (
-            <Link href={`/${slug}/pro?date=${date}${showAll ? "" : "&all=1"}`} className="underline underline-offset-2 text-stone-400 hover:text-stone-600">
+            <Link href={`/${slug}/pro?date=${date}${showAll ? "" : "&all=1"}`} className="underline underline-offset-2 text-ink-muted hover:text-stone-600">
               {showAll ? `Filtrer : ${scope === "traiteur" ? "Traiteur" : "Boutique"} uniquement` : "Voir tout (traiteur + boutique)"}
             </Link>
           )}

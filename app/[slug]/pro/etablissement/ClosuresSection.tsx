@@ -66,10 +66,10 @@ function ClosureUniverseSection({
 
   return (
     <div className="border-b border-stone-200 last:border-b-0">
-      {showLabel && <p className="px-6 pt-4 text-xs uppercase tracking-wide text-stone-400">{UNIVERSE_LABEL[universe]}</p>}
+      {showLabel && <p className="px-6 pt-4 text-xs uppercase tracking-wide text-ink-muted">{UNIVERSE_LABEL[universe]}</p>}
 
       <div className="px-6 py-4 border-b border-stone-100">
-        <p className="text-xs text-stone-400 mb-3">
+        <p className="text-xs text-ink-muted mb-3">
           Fermeture hebdomadaire récurrente — ces jours ne seront jamais proposés au client, chaque semaine.
         </p>
         <form action={updateClosedWeekdays.bind(null, slug, universe)} className="flex flex-col gap-3">
@@ -88,13 +88,13 @@ function ClosureUniverseSection({
       </div>
 
       <div className="px-6 py-4">
-        <p className="text-xs text-stone-400 mb-3">Fermetures ponctuelles — congés, jours fériés</p>
+        <p className="text-xs text-ink-muted mb-3">Fermetures ponctuelles — congés, jours fériés</p>
         <div className="flex flex-col divide-y divide-stone-100 mb-4">
           {closures.map((closure) => (
             <div key={closure.id} className="py-2.5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium capitalize">{formatDateLabel(closure.date)}</p>
-                {closure.reason && <p className="text-xs text-stone-400 mt-0.5">{closure.reason}</p>}
+                {closure.reason && <p className="text-xs text-ink-muted mt-0.5">{closure.reason}</p>}
               </div>
               <form action={removeClosure.bind(null, slug, closure.id)}>
                 <button type="submit" className="text-xs text-red-600 hover:text-red-800 underline whitespace-nowrap">
@@ -103,7 +103,7 @@ function ClosureUniverseSection({
               </form>
             </div>
           ))}
-          {closures.length === 0 && <p className="py-4 text-center text-stone-400 text-sm">Aucune fermeture ponctuelle à venir.</p>}
+          {closures.length === 0 && <p className="py-4 text-center text-ink-muted text-sm">Aucune fermeture ponctuelle à venir.</p>}
         </div>
         <AddClosureForm slug={slug} orderType={universe} accentColor={accentColor} />
       </div>

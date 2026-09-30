@@ -65,11 +65,11 @@ export function DayView({
   return (
     <>
       <div className="flex items-center justify-between px-6 py-3 border-b border-stone-200">
-        <Link href={`/${slug}/pro?date=${addDaysISO(date, -1)}`} className="text-stone-400 hover:text-stone-600 px-2">
+        <Link href={`/${slug}/pro?date=${addDaysISO(date, -1)}`} className="text-ink-muted hover:text-stone-600 px-2">
           ←
         </Link>
         <p className="text-sm font-medium">{isToday ? "Aujourd'hui" : formatDateLabel(date)}</p>
-        <Link href={`/${slug}/pro?date=${addDaysISO(date, 1)}`} className="text-stone-400 hover:text-stone-600 px-2">
+        <Link href={`/${slug}/pro?date=${addDaysISO(date, 1)}`} className="text-ink-muted hover:text-stone-600 px-2">
           →
         </Link>
       </div>
@@ -80,22 +80,22 @@ export function DayView({
       <div className="grid grid-cols-3 divide-x divide-stone-200 border-b border-stone-200 text-center">
         <div className="px-3 py-4">
           <p className="text-xl font-semibold">{activeOrders.length}</p>
-          <p className="text-xs text-stone-400 mt-1">Commande{activeOrders.length > 1 ? "s" : ""}</p>
+          <p className="text-xs text-ink-muted mt-1">Commande{activeOrders.length > 1 ? "s" : ""}</p>
         </div>
         <div className="px-3 py-4">
           <p className="text-xl font-semibold">{formatCHF(chiffreDuJour)}</p>
-          <p className="text-xs text-stone-400 mt-1">Chiffre du jour</p>
+          <p className="text-xs text-ink-muted mt-1">Chiffre du jour</p>
         </div>
         <div className="px-3 py-4">
           <p className="text-xl font-semibold">{prochainRetrait ? prochainRetrait.replace(":", "h") : "—"}</p>
-          <p className="text-xs text-stone-400 mt-1">Prochain retrait</p>
+          <p className="text-xs text-ink-muted mt-1">Prochain retrait</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x divide-stone-200">
       <div className="px-6 py-4 border-b border-stone-200 lg:border-b-0">
-        <p className="text-xs text-stone-400 mb-3">À produire {isToday ? "aujourd'hui" : "ce jour"}</p>
-        {aggregated.length === 0 && <p className="text-sm text-stone-400">Aucune commande ce jour.</p>}
+        <p className="text-xs text-ink-muted mb-3">À produire {isToday ? "aujourd'hui" : "ce jour"}</p>
+        {aggregated.length === 0 && <p className="text-sm text-ink-muted">Aucune commande ce jour.</p>}
         <div className="flex flex-col gap-3">
           {aggregated.map((item) => {
             const max = dailyMaxByProduct.get(item.productId);
@@ -131,7 +131,7 @@ export function DayView({
                 {productLots.length > 0 && (
                   <div className="mt-2 flex flex-col gap-1">
                     {productLots.map((lot) => (
-                      <div key={lot.id} className="flex items-center justify-between text-xs text-stone-500 bg-stone-50 rounded-md px-2 py-1">
+                      <div key={lot.id} className="flex items-center justify-between text-xs text-ink-muted bg-stone-50 rounded-md px-2 py-1">
                         <span>
                           {lot.quantity} → {lot.assigneeName ?? "Non assigné"} · prêt {lot.readyByTime.slice(0, 5).replace(":", "h")}
                         </span>
@@ -182,7 +182,7 @@ export function DayView({
       </div>
 
       <div className="divide-y divide-stone-200">
-        <p className="px-6 pt-4 text-xs text-stone-400">Commandes</p>
+        <p className="px-6 pt-4 text-xs text-ink-muted">Commandes</p>
         {activeOrders.map((order) => (
           <div key={order.id} className="px-6 py-4 flex items-start gap-4">
             <form action={togglePrepared.bind(null, slug, order.id, order.status)}>
@@ -206,7 +206,7 @@ export function DayView({
                 </p>
                 <p className="text-sm font-medium whitespace-nowrap">{formatCHF(Number(order.totalAmount))}</p>
               </div>
-              <p className="text-xs text-stone-500 mt-1">
+              <p className="text-xs text-ink-muted mt-1">
                 {order.items.map((i) => `${i.productNameSnapshot} ×${i.quantity}`).join(", ")}
               </p>
 
@@ -242,7 +242,7 @@ export function DayView({
 
               <div className="flex items-center justify-between mt-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-stone-400">{order.orderType === "boutique" ? "Boutique" : "Traiteur"}</span>
+                  <span className="text-xs text-ink-muted">{order.orderType === "boutique" ? "Boutique" : "Traiteur"}</span>
                   {(() => {
                     const badge = PAYMENT_BADGE[order.paymentStatus] ?? { label: order.paymentStatus, tone: "neutral" as const };
                     return <Badge tone={badge.tone}>{badge.label}</Badge>;
@@ -256,7 +256,7 @@ export function DayView({
           </div>
         ))}
         {activeOrders.length === 0 && (
-          <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucune commande pour ce jour.</p>
+          <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucune commande pour ce jour.</p>
         )}
       </div>
       </div>

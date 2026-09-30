@@ -62,7 +62,7 @@ export function OrderEditClient({
             <div key={item.id} className="py-4 flex justify-between items-center gap-3">
               <div>
                 <p className="text-sm font-medium">{item.productNameSnapshot}</p>
-                <p className="text-xs text-stone-400">
+                <p className="text-xs text-ink-muted">
                   {formatCHF(Number(item.unitPriceSnapshot))} / pièce
                   {quantity !== item.quantity ? ` — ${item.quantity} → ${quantity}` : ""}
                 </p>
@@ -70,7 +70,7 @@ export function OrderEditClient({
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={() => setQuantity(item.id, quantity - 1)}
-                  className="w-7 h-7 rounded-full border border-stone-300 text-stone-500 flex items-center justify-center"
+                  className="w-7 h-7 rounded-full border border-stone-300 text-ink-muted flex items-center justify-center"
                   aria-label={`Retirer un ${item.productNameSnapshot}`}
                 >
                   −
@@ -92,11 +92,11 @@ export function OrderEditClient({
 
       <div className="px-6 py-4 border-t border-stone-200 flex flex-col gap-1">
         <div className="flex justify-between text-sm">
-          <span className="text-stone-400">Total mis à jour</span>
+          <span className="text-ink-muted">Total mis à jour</span>
           <span>{formatCHF(newTotal)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-stone-400">Déjà réglé par le client</span>
+          <span className="text-ink-muted">Déjà réglé par le client</span>
           <span>{formatCHF(paidAmount)}</span>
         </div>
         {refundAmount > 0 && (

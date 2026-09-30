@@ -70,15 +70,15 @@ export default async function DossierPage({
 
           <form method="get" className="px-6 py-4 border-b border-stone-200 flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Du</label>
+              <label className="block text-xs text-ink-muted mb-1">Du</label>
               <input type="date" name="dateFrom" defaultValue={dateFrom} className="border border-stone-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Au</label>
+              <label className="block text-xs text-ink-muted mb-1">Au</label>
               <input type="date" name="dateTo" defaultValue={dateTo} className="border border-stone-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Client</label>
+              <label className="block text-xs text-ink-muted mb-1">Client</label>
               <input
                 type="text"
                 name="clientName"
@@ -89,7 +89,7 @@ export default async function DossierPage({
             </div>
             {!allowedEntityId && entities.length > 1 && (
               <div>
-                <label className="block text-xs text-stone-400 mb-1">Entité</label>
+                <label className="block text-xs text-ink-muted mb-1">Entité</label>
                 <select name="entityId" defaultValue={entityId ?? ""} className="border border-stone-200 rounded-lg px-3 py-2 text-sm">
                   <option value="">Toutes</option>
                   {entities.map((entity) => (
@@ -112,7 +112,7 @@ export default async function DossierPage({
                 <div key={order.id} className="px-6 py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{order.clientName}</p>
-                    <p className="text-xs text-stone-400">
+                    <p className="text-xs text-ink-muted">
                       {formatDateLabel(order.pickupDate)} · {entityNameById.get(order.sellingEntityId) ?? "—"} ·{" "}
                       {order.orderType === "boutique" ? "Boutique" : "Traiteur"}
                     </p>
@@ -132,14 +132,14 @@ export default async function DossierPage({
                 </div>
               );
             })}
-            {orders.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucune commande sur cette période.</p>}
+            {orders.length === 0 && <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucune commande sur cette période.</p>}
           </div>
         </ProPanel>
 
         <ProPanel>
           <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
             <p className="font-serif text-sm">Rapport comptable</p>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-ink-muted">
               {formatDateLabel(dateFrom)} → {formatDateLabel(dateTo)}
             </p>
           </div>
@@ -176,7 +176,7 @@ export default async function DossierPage({
               <div key={purchase.id} className="px-6 py-3 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{purchase.supplierName}</p>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-ink-muted">
                     {formatDateLabel(purchase.invoiceDate)} · {entityNameById.get(purchase.legalEntityId) ?? "—"}
                     {purchase.description ? ` · ${purchase.description}` : ""}
                   </p>
@@ -191,7 +191,7 @@ export default async function DossierPage({
                 </div>
               </div>
             ))}
-            {purchases.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucune facture d&apos;achat enregistrée.</p>}
+            {purchases.length === 0 && <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucune facture d&apos;achat enregistrée.</p>}
           </div>
           <div className="px-6 py-4 border-t border-stone-200">
             <AddPurchaseInvoiceForm

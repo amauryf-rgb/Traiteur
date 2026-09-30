@@ -7,6 +7,7 @@ import { getTodayISO } from "@/lib/slots";
 import { formatCHF } from "@/lib/format";
 import { buttonClassName } from "@/components/ui/Button";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
+import { INK_MUTED } from "@/lib/theme";
 import { toggleActive } from "./actions";
 
 export default async function CataloguePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -49,7 +50,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
         </Link>
       </div>
 
-      <p className="px-6 py-3 text-xs text-stone-400 border-b border-stone-200">
+      <p className="px-6 py-3 text-xs text-ink-muted border-b border-stone-200">
         Définissez une quantité maximale par produit pour éviter qu&apos;une commande ne dépasse votre capacité de production.
       </p>
 
@@ -67,8 +68,8 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${product.isActive ? "" : "text-stone-400 line-through"}`}>{product.name}</p>
-                <p className="text-xs text-stone-400">
+                <p className={`text-sm font-medium truncate ${product.isActive ? "" : "text-ink-muted line-through"}`}>{product.name}</p>
+                <p className="text-xs text-ink-muted">
                   {product.categoryName ?? "Sans catégorie"}
                   {product.sectionTitle ? ` · ${product.sectionTitle}` : ""} · {formatCHF(Number(product.priceAmount))}
                 </p>
@@ -77,7 +78,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
               <div className="w-32 shrink-0">
                 {max ? (
                   <>
-                    <p className={`text-xs text-right ${nearLimit ? "text-amber-700 font-medium" : "text-stone-500"}`}>
+                    <p className={`text-xs text-right ${nearLimit ? "text-amber-700 font-medium" : "text-ink-muted"}`}>
                       {qty}/{max} aujourd&apos;hui
                     </p>
                     <div className="h-1.5 rounded-full bg-stone-100 mt-1 overflow-hidden">
@@ -88,7 +89,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
                     </div>
                   </>
                 ) : product.perSlotMax ? (
-                  <p className="text-xs text-stone-400 text-right">Max {product.perSlotMax}/créneau</p>
+                  <p className="text-xs text-ink-muted text-right">Max {product.perSlotMax}/créneau</p>
                 ) : (
                   <p className="text-xs text-stone-300 text-right">Sans limite</p>
                 )}
@@ -98,7 +99,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
                 <button
                   type="submit"
                   className={`${buttonClassName("secondary")} !px-3 !py-1.5 text-xs whitespace-nowrap`}
-                  style={product.isActive ? { borderColor: "#d6d3d1", color: "#78716c" } : { borderColor: accentColor, color: accentColor }}
+                  style={product.isActive ? { borderColor: "#d6d3d1", color: INK_MUTED } : { borderColor: accentColor, color: accentColor }}
                 >
                   {product.isActive ? "Désactiver" : "Activer"}
                 </button>
@@ -114,7 +115,7 @@ export default async function CataloguePage({ params }: { params: Promise<{ slug
             </div>
           );
         })}
-        {products.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucun produit pour l&apos;instant.</p>}
+        {products.length === 0 && <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucun produit pour l&apos;instant.</p>}
       </div>
     </ProPanel>
     </ProShell>

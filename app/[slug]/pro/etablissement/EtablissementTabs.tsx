@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { INK_MUTED } from "@/lib/theme";
 
 export type EtablissementTabKey = "identite" | "entites" | "equipe" | "fermetures";
 
@@ -37,7 +38,7 @@ export function EtablissementTabs({
             style={
               active === tab.key
                 ? { borderBottom: `2px solid ${accentColor}`, color: accentColor, fontWeight: 500, marginBottom: "-1px" }
-                : { color: "#78716c" }
+                : { color: INK_MUTED }
             }
           >
             {tab.label}

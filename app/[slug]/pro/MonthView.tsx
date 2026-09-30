@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { addMonthsISO, formatMonthLabel, getMonthBounds, WEEKDAY_LABELS, type CalendarCell } from "@/lib/slots";
+import { INK_MUTED } from "@/lib/theme";
 
 export function MonthView({
   slug,
@@ -26,17 +27,17 @@ export function MonthView({
   return (
     <>
       <div className="flex items-center justify-between px-6 py-3 border-b border-stone-200">
-        <Link href={`/${slug}/pro?view=month&date=${prevMonthAnchor}`} className="text-stone-400 hover:text-stone-600 px-2">
+        <Link href={`/${slug}/pro?view=month&date=${prevMonthAnchor}`} className="text-ink-muted hover:text-stone-600 px-2">
           ←
         </Link>
         <p className="text-sm font-medium">{formatMonthLabel(monthISO)}</p>
-        <Link href={`/${slug}/pro?view=month&date=${nextMonthAnchor}`} className="text-stone-400 hover:text-stone-600 px-2">
+        <Link href={`/${slug}/pro?view=month&date=${nextMonthAnchor}`} className="text-ink-muted hover:text-stone-600 px-2">
           →
         </Link>
       </div>
 
       <div className="px-6 py-4">
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-stone-400 mb-2">
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-ink-muted mb-2">
           {WEEKDAY_LABELS.map((label, i) => (
             <div key={i}>{label}</div>
           ))}
@@ -70,7 +71,7 @@ export function MonthView({
                 <span
                   className="text-xs"
                   style={{
-                    color: isToday ? "white" : isBusy ? "#b45309" : isClosed ? "#a8a29e" : "#57534e",
+                    color: isToday ? "white" : isBusy ? "#b45309" : isClosed ? INK_MUTED : "#57534e",
                     textDecoration: isToday && isClosed ? "line-through" : "none",
                   }}
                 >
@@ -79,7 +80,7 @@ export function MonthView({
                 {count > 0 && (
                   <span
                     className="text-[10px] font-medium"
-                    style={{ color: isToday ? "white" : isBusy ? "#b45309" : "#a8a29e" }}
+                    style={{ color: isToday ? "white" : isBusy ? "#b45309" : INK_MUTED }}
                   >
                     {count}
                   </span>
@@ -88,7 +89,7 @@ export function MonthView({
             );
           })}
         </div>
-        <div className="flex items-center gap-4 mt-3 text-[11px] text-stone-400">
+        <div className="flex items-center gap-4 mt-3 text-[11px] text-ink-muted">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#fef3c7" }} />
             Chargé

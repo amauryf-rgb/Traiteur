@@ -27,7 +27,7 @@ export function ProductForm({
   return (
     <form action={formAction} className="flex flex-col gap-4 px-6 py-6">
       <div>
-        <label className="block text-xs text-stone-400 mb-1">Photo du produit</label>
+        <label className="block text-xs text-ink-muted mb-1">Photo du produit</label>
         <div className="flex items-center gap-4">
           {photoPreview && !removePhoto ? (
             <img src={photoPreview} alt="" className="w-20 h-20 rounded-lg object-cover border border-stone-200" />
@@ -48,10 +48,10 @@ export function ProductForm({
                   setRemovePhoto(false);
                 }
               }}
-              className="text-xs text-stone-500"
+              className="text-xs text-ink-muted"
             />
             {product?.photoUrl && (
-              <label className="flex items-center gap-1.5 text-xs text-stone-500">
+              <label className="flex items-center gap-1.5 text-xs text-ink-muted">
                 <input
                   type="checkbox"
                   name="removePhoto"
@@ -69,7 +69,7 @@ export function ProductForm({
       </div>
 
       <div>
-        <label className="block text-xs text-stone-400 mb-1">Nom du produit</label>
+        <label className="block text-xs text-ink-muted mb-1">Nom du produit</label>
         <input
           name="name"
           defaultValue={product?.name}
@@ -80,7 +80,7 @@ export function ProductForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-stone-400 mb-1">Prix (CHF)</label>
+          <label className="block text-xs text-ink-muted mb-1">Prix (CHF)</label>
           <input
             name="priceAmount"
             type="number"
@@ -92,7 +92,7 @@ export function ProductForm({
           />
         </div>
         <div>
-          <label className="block text-xs text-stone-400 mb-1">Catégorie</label>
+          <label className="block text-xs text-ink-muted mb-1">Catégorie</label>
           <input
             name="categoryName"
             defaultValue={product?.categoryName ?? ""}
@@ -103,21 +103,21 @@ export function ProductForm({
       </div>
 
       <div>
-        <label className="block text-xs text-stone-400 mb-1">Sous-titre de section (optionnel)</label>
+        <label className="block text-xs text-ink-muted mb-1">Sous-titre de section (optionnel)</label>
         <input
           name="sectionTitle"
           defaultValue={product?.sectionTitle ?? ""}
           placeholder="ex. Pâtes fraîches"
           className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
         />
-        <p className="text-xs text-stone-400 mt-1">
+        <p className="text-xs text-ink-muted mt-1">
           Regroupe les produits partageant le même intitulé sous ce sous-titre dans le catalogue client, au sein de
           leur catégorie. Laisser vide pour ne pas regrouper.
         </p>
       </div>
 
       <div>
-        <label className="block text-xs text-stone-400 mb-1">Description</label>
+        <label className="block text-xs text-ink-muted mb-1">Description</label>
         <textarea
           name="description"
           defaultValue={product?.description ?? ""}
@@ -128,7 +128,7 @@ export function ProductForm({
 
       {allergenOptions.length > 0 && (
         <div>
-          <label className="block text-xs text-stone-400 mb-2">Allergènes</label>
+          <label className="block text-xs text-ink-muted mb-2">Allergènes</label>
           <div className="flex flex-wrap gap-3">
             {allergenOptions.map((allergen) => (
               <label key={allergen.id} className="flex items-center gap-1.5 text-sm">
@@ -162,10 +162,10 @@ export function ProductForm({
       </label>
 
       <div className="border-t border-stone-200 pt-4">
-        <p className="text-xs text-stone-400 mb-2">Capacité de production (laisser vide = pas de limite)</p>
+        <p className="text-xs text-ink-muted mb-2">Capacité de production (laisser vide = pas de limite)</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-stone-400 mb-1">Quantité max / jour</label>
+            <label className="block text-xs text-ink-muted mb-1">Quantité max / jour</label>
             <input
               name="perDayMax"
               type="number"
@@ -175,7 +175,7 @@ export function ProductForm({
             />
           </div>
           <div>
-            <label className="block text-xs text-stone-400 mb-1">Quantité max / créneau</label>
+            <label className="block text-xs text-ink-muted mb-1">Quantité max / créneau</label>
             <input
               name="perSlotMax"
               type="number"
@@ -186,7 +186,7 @@ export function ProductForm({
           </div>
         </div>
         <div className="mt-3">
-          <label className="block text-xs text-stone-400 mb-1">Alerter à partir de (%)</label>
+          <label className="block text-xs text-ink-muted mb-1">Alerter à partir de (%)</label>
           <input
             name="alertThresholdPct"
             type="number"

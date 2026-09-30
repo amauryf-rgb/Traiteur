@@ -64,8 +64,8 @@ export function AddPurchaseInvoiceForm({
         className="border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
       />
       <div>
-        <label className="block text-xs text-stone-400 mb-1">Photo ou scan de la facture (optionnel)</label>
-        <input name="scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-xs text-stone-500" />
+        <label className="block text-xs text-ink-muted mb-1">Photo ou scan de la facture (optionnel)</label>
+        <input name="scan" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="text-xs text-ink-muted" />
       </div>
       {state.error && <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>}
       <Button type="submit" disabled={isPending} accentColor={accentColor} className="self-start">

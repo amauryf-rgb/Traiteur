@@ -33,18 +33,18 @@ export function EntityBillingForm({
       >
         <div>
           <p className="text-sm font-medium">{entity.name}</p>
-          <p className={`text-xs mt-0.5 ${complete ? "text-stone-400" : "text-amber-700"}`}>
+          <p className={`text-xs mt-0.5 ${complete ? "text-ink-muted" : "text-amber-700"}`}>
             {complete ? "Coordonnées de facturation complètes" : "Coordonnées de facturation incomplètes"}
           </p>
         </div>
-        <span className="text-xs text-stone-400">{open ? "Fermer" : "Modifier"}</span>
+        <span className="text-xs text-ink-muted">{open ? "Fermer" : "Modifier"}</span>
       </button>
 
       {open && (
         <form action={formAction} className="px-4 pb-4 border-t border-stone-200 pt-4 flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs text-stone-400 mb-1">Adresse</label>
+              <label className="block text-xs text-ink-muted mb-1">Adresse</label>
               <input
                 name="addressLine1"
                 defaultValue={entity.addressLine1 ?? ""}
@@ -61,7 +61,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">NPA</label>
+              <label className="block text-xs text-ink-muted mb-1">NPA</label>
               <input
                 name="addressPostalCode"
                 defaultValue={entity.addressPostalCode ?? ""}
@@ -69,7 +69,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Ville</label>
+              <label className="block text-xs text-ink-muted mb-1">Ville</label>
               <input
                 name="addressCity"
                 defaultValue={entity.addressCity ?? ""}
@@ -77,7 +77,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Pays</label>
+              <label className="block text-xs text-ink-muted mb-1">Pays</label>
               <input
                 name="addressCountry"
                 defaultValue={entity.addressCountry ?? "CH"}
@@ -85,7 +85,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">N° TVA (optionnel)</label>
+              <label className="block text-xs text-ink-muted mb-1">N° TVA (optionnel)</label>
               <input
                 name="vatNumber"
                 defaultValue={entity.vatNumber ?? ""}
@@ -94,7 +94,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">IBAN</label>
+              <label className="block text-xs text-ink-muted mb-1">IBAN</label>
               <input
                 name="ibanNumber"
                 defaultValue={entity.ibanNumber ?? ""}
@@ -103,7 +103,7 @@ export function EntityBillingForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-400 mb-1">Banque (optionnel)</label>
+              <label className="block text-xs text-ink-muted mb-1">Banque (optionnel)</label>
               <input
                 name="bankName"
                 defaultValue={entity.bankName ?? ""}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/[slug]/pro/actions";
+import { BRAND_BLACK } from "@/lib/theme";
 
 export type ProNavKey = "planning" | "comptoir" | "catalogue" | "facturation" | "dossier" | "etablissement" | "compte";
 
@@ -31,10 +32,8 @@ export function ProHeader({
   isOwner: boolean;
   active: ProNavKey;
 }) {
-  const accentColor = establishment.accentColor ?? "#1a1a1a";
-
   return (
-    <header className="text-white" style={{ backgroundColor: accentColor }}>
+    <header className="text-white" style={{ backgroundColor: BRAND_BLACK }}>
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-serif text-sm shrink-0">

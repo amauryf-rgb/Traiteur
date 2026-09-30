@@ -31,7 +31,7 @@ export default async function ComptePage({ params }: { params: Promise<{ slug: s
         <ProPanel>
           <p className="font-serif text-sm px-6 py-4 border-b border-stone-200">Mon compte — {session.name}</p>
           <div className="px-6 py-4 border-b border-stone-200">
-            <p className="text-xs text-stone-400 mb-3">Changer mon code d&apos;accès</p>
+            <p className="text-xs text-ink-muted mb-3">Changer mon code d&apos;accès</p>
             <ChangeAccessCodeForm slug={slug} accentColor={accentColor} />
           </div>
         </ProPanel>

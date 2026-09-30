@@ -26,8 +26,8 @@ function ImageField({
 
   return (
     <div>
-      <label className="block text-xs text-stone-400 mb-1">{label}</label>
-      <p className="text-xs text-stone-400 mb-2">{hint}</p>
+      <label className="block text-xs text-ink-muted mb-1">{label}</label>
+      <p className="text-xs text-ink-muted mb-2">{hint}</p>
       <div className="flex items-center gap-4">
         {preview && !remove ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -49,10 +49,10 @@ function ImageField({
                 setRemove(false);
               }
             }}
-            className="text-xs text-stone-500"
+            className="text-xs text-ink-muted"
           />
           {currentUrl && (
-            <label className="flex items-center gap-1.5 text-xs text-stone-500">
+            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
               <input
                 type="checkbox"
                 name={removeName}

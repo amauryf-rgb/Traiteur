@@ -45,7 +45,7 @@ export default async function InvoiceDetailPage({
         <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
           <div>
             <p className="font-serif text-sm">Facture {invoice.invoiceNumber}</p>
-            <Link href={`/${slug}/pro/facturation`} className="text-xs text-stone-400 hover:text-stone-600">
+            <Link href={`/${slug}/pro/facturation`} className="text-xs text-ink-muted hover:text-stone-600">
               ← Facturation
             </Link>
           </div>
@@ -60,33 +60,33 @@ export default async function InvoiceDetailPage({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-stone-200 border-b border-stone-200">
           <div className="px-6 py-4">
-            <p className="text-xs text-stone-400 mb-2">Émise par</p>
+            <p className="text-xs text-ink-muted mb-2">Émise par</p>
             <p className="text-sm font-medium">{fromEntity.name}</p>
-            {fromEntity.addressLine1 && <p className="text-xs text-stone-500 mt-1">{fromEntity.addressLine1}</p>}
-            {fromEntity.addressLine2 && <p className="text-xs text-stone-500">{fromEntity.addressLine2}</p>}
+            {fromEntity.addressLine1 && <p className="text-xs text-ink-muted mt-1">{fromEntity.addressLine1}</p>}
+            {fromEntity.addressLine2 && <p className="text-xs text-ink-muted">{fromEntity.addressLine2}</p>}
             {(fromEntity.addressPostalCode || fromEntity.addressCity) && (
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-ink-muted">
                 {fromEntity.addressPostalCode} {fromEntity.addressCity}
               </p>
             )}
-            {fromEntity.vatNumber && <p className="text-xs text-stone-400 mt-1">TVA {fromEntity.vatNumber}</p>}
-            {fromEntity.ibanNumber && <p className="text-xs text-stone-400">IBAN {fromEntity.ibanNumber}</p>}
+            {fromEntity.vatNumber && <p className="text-xs text-ink-muted mt-1">TVA {fromEntity.vatNumber}</p>}
+            {fromEntity.ibanNumber && <p className="text-xs text-ink-muted">IBAN {fromEntity.ibanNumber}</p>}
           </div>
           <div className="px-6 py-4">
-            <p className="text-xs text-stone-400 mb-2">Adressée à</p>
+            <p className="text-xs text-ink-muted mb-2">Adressée à</p>
             <p className="text-sm font-medium">{toEntity.name}</p>
-            {toEntity.addressLine1 && <p className="text-xs text-stone-500 mt-1">{toEntity.addressLine1}</p>}
-            {toEntity.addressLine2 && <p className="text-xs text-stone-500">{toEntity.addressLine2}</p>}
+            {toEntity.addressLine1 && <p className="text-xs text-ink-muted mt-1">{toEntity.addressLine1}</p>}
+            {toEntity.addressLine2 && <p className="text-xs text-ink-muted">{toEntity.addressLine2}</p>}
             {(toEntity.addressPostalCode || toEntity.addressCity) && (
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-ink-muted">
                 {toEntity.addressPostalCode} {toEntity.addressCity}
               </p>
             )}
-            {toEntity.vatNumber && <p className="text-xs text-stone-400 mt-1">TVA {toEntity.vatNumber}</p>}
+            {toEntity.vatNumber && <p className="text-xs text-ink-muted mt-1">TVA {toEntity.vatNumber}</p>}
           </div>
         </div>
 
-        <div className="px-6 py-3 border-b border-stone-200 text-xs text-stone-400">
+        <div className="px-6 py-3 border-b border-stone-200 text-xs text-ink-muted">
           Période du {formatSwissDate(invoice.periodStart)} au {formatSwissDate(invoice.periodEnd)}
         </div>
 
@@ -97,7 +97,7 @@ export default async function InvoiceDetailPage({
               <span className="font-medium">{formatCHF(Number(line.amount))}</span>
             </div>
           ))}
-          {includedLines.length === 0 && <p className="px-6 py-6 text-center text-sm text-stone-400">Aucune ligne.</p>}
+          {includedLines.length === 0 && <p className="px-6 py-6 text-center text-sm text-ink-muted">Aucune ligne.</p>}
         </div>
 
         <div className="px-6 py-4 border-t border-stone-200 flex justify-between font-medium">

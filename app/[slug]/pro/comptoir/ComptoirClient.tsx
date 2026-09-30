@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { formatCHF } from "@/lib/format";
 import { Button, buttonClassName, buttonStyle } from "@/components/ui/Button";
+import { INK_MUTED } from "@/lib/theme";
 import { checkoutComptoir } from "./actions";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
@@ -107,7 +108,7 @@ export function ComptoirClient({
                 style={
                   activeCategory === category
                     ? { borderBottom: `2px solid ${accentColor}`, color: accentColor }
-                    : { color: "#a8a29e" }
+                    : { color: INK_MUTED }
                 }
               >
                 {category}
@@ -123,18 +124,18 @@ export function ComptoirClient({
                 className="text-left rounded-lg border border-stone-200 px-4 py-3 hover:border-stone-300"
               >
                 <p className="text-sm font-medium">{product.name}</p>
-                <p className="text-xs text-stone-400 mt-0.5">{formatCHF(Number(product.priceAmount))}</p>
+                <p className="text-xs text-ink-muted mt-0.5">{formatCHF(Number(product.priceAmount))}</p>
               </button>
             ))}
             {visibleProducts.length === 0 && (
-              <p className="col-span-2 lg:col-span-3 text-sm text-stone-400 text-center py-8">Aucun produit dans cette catégorie.</p>
+              <p className="col-span-2 lg:col-span-3 text-sm text-ink-muted text-center py-8">Aucun produit dans cette catégorie.</p>
             )}
           </div>
         </div>
 
         <div className="flex flex-col">
           <div className="px-5 py-3 border-b border-stone-200">
-            <p className="text-xs text-stone-400 mb-2">Commande en cours</p>
+            <p className="text-xs text-ink-muted mb-2">Commande en cours</p>
             <input
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
@@ -157,7 +158,7 @@ export function ComptoirClient({
                   <button
                     onClick={() => removeOne(item.productId)}
                     aria-label={`Retirer un ${item.name}`}
-                    className="w-5 h-5 rounded-full border border-stone-300 text-stone-400 flex items-center justify-center text-xs"
+                    className="w-5 h-5 rounded-full border border-stone-300 text-ink-muted flex items-center justify-center text-xs"
                   >
                     −
                   </button>

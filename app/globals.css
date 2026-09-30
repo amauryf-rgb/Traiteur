@@ -14,6 +14,12 @@
      site récupèrent la bonne police sans modifier un seul composant. */
   --font-serif: var(--font-voice);
   --font-sans: var(--font-sans);
+  /* Gris texte de la charte "caractère" (voir lib/theme.ts, INK_MUTED) —
+     valeur dupliquée ici (CSS ne peut pas importer du TS) volontairement
+     identique : 5.72:1 sur le fond crème #f7f3ec, 6.32:1 sur blanc, largement
+     au-dessus du seuil WCAG AA (4.5:1), contrairement à stone-400 (2.28:1 sur
+     crème, 2.52:1 sur blanc). Toujours garder ces deux valeurs synchronisées. */
+  --color-ink-muted: #6b5d55;
 }
 
 @media (prefers-color-scheme: dark) {

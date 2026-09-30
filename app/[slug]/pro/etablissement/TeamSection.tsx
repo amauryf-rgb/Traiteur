@@ -49,10 +49,10 @@ export function TeamSection({
                 <p className="text-sm font-medium">{member.name}</p>
                 <Badge tone={ROLE_BADGE[member.role]?.tone ?? "neutral"}>{ROLE_BADGE[member.role]?.label ?? member.role}</Badge>
               </div>
-              <p className="text-xs text-stone-400 mt-0.5">
+              <p className="text-xs text-ink-muted mt-0.5">
                 {entityById.get(member.legalEntityId ?? "")?.name ?? "Aucune entité"} · code {member.accessCode}
               </p>
-              <p className="text-xs text-stone-400 mt-0.5">
+              <p className="text-xs text-ink-muted mt-0.5">
                 {lastLoginByStaffMember.has(member.id)
                   ? `Dernière connexion : ${dateTimeFormatter.format(lastLoginByStaffMember.get(member.id))}`
                   : "Jamais connecté"}
@@ -60,7 +60,7 @@ export function TeamSection({
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <form action={resetStaffAccessCode.bind(null, slug, member.id)}>
-                <button type="submit" className="text-xs text-stone-500 hover:text-stone-700 underline whitespace-nowrap">
+                <button type="submit" className="text-xs text-ink-muted hover:text-stone-700 underline whitespace-nowrap">
                   Réinitialiser le code
                 </button>
               </form>
@@ -72,11 +72,11 @@ export function TeamSection({
             </div>
           </div>
         ))}
-        {staff.length === 0 && <p className="px-6 py-8 text-center text-stone-400 text-sm">Aucun membre d&apos;équipe.</p>}
+        {staff.length === 0 && <p className="px-6 py-8 text-center text-ink-muted text-sm">Aucun membre d&apos;équipe.</p>}
       </div>
 
       <div className="px-6 py-4 border-t border-stone-200">
-        <p className="text-xs text-stone-400 mb-3">
+        <p className="text-xs text-ink-muted mb-3">
           Tentatives de connexion échouées récentes {recentFailedAttempts.length > 0 && `(${recentFailedAttempts.length})`}
         </p>
         {recentFailedAttempts.length === 0 ? (
@@ -84,7 +84,7 @@ export function TeamSection({
         ) : (
           <div className="flex flex-col gap-1">
             {recentFailedAttempts.map((attempt, i) => (
-              <p key={i} className="text-xs text-stone-500">
+              <p key={i} className="text-xs text-ink-muted">
                 {dateTimeFormatter.format(attempt.createdAt)} · depuis {attempt.ipAddress}
               </p>
             ))}
@@ -93,7 +93,7 @@ export function TeamSection({
       </div>
 
       <div className="px-6 py-4 border-t border-stone-200">
-        <p className="text-xs text-stone-400 mb-3">Ajouter un membre</p>
+        <p className="text-xs text-ink-muted mb-3">Ajouter un membre</p>
         <AddStaffForm slug={slug} entities={entities.map((e) => ({ id: e.id, name: e.name }))} accentColor={accentColor} />
       </div>
     </>

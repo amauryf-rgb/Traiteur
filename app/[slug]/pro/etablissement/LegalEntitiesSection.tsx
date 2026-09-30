@@ -12,7 +12,7 @@ type LegalEntity = Awaited<ReturnType<typeof getLegalEntitiesForEstablishment>>[
 export function LegalEntitiesSection({ slug, entities, accentColor }: { slug: string; entities: LegalEntity[]; accentColor: string }) {
   return (
     <div className="px-6 py-4 flex flex-col gap-2">
-      <p className="text-xs text-stone-400 mb-1">
+      <p className="text-xs text-ink-muted mb-1">
         Adresse, IBAN et numéro de TVA — utilisés à la fois sur les factures clients et sur les factures
         inter-entités.
       </p>

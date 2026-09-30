@@ -90,9 +90,9 @@ export default async function FacturationPage({
       )}
 
       <form className="flex items-center gap-3 px-6 py-3 border-b border-stone-200 text-xs flex-wrap">
-        <span className="text-stone-400">Période</span>
+        <span className="text-ink-muted">Période</span>
         <input type="date" name="start" defaultValue={periodStart} className="border border-stone-200 rounded-md px-2 py-1" />
-        <span className="text-stone-400">→</span>
+        <span className="text-ink-muted">→</span>
         <input type="date" name="end" defaultValue={periodEnd} className="border border-stone-200 rounded-md px-2 py-1" />
         <button type="submit" className="rounded-md border border-stone-200 px-3 py-1">
           Filtrer
@@ -100,9 +100,9 @@ export default async function FacturationPage({
       </form>
 
       <div className="p-6">
-        <p className="text-xs text-stone-400 mb-3">À facturer</p>
+        <p className="text-xs text-ink-muted mb-3">À facturer</p>
         {groups.size === 0 && (
-          <p className="text-sm text-stone-400">Aucune commande à facturer entre entités pour cette période.</p>
+          <p className="text-sm text-ink-muted">Aucune commande à facturer entre entités pour cette période.</p>
         )}
         {Array.from(groups.values()).map((group) => (
           <InvoiceGroupForm
@@ -127,16 +127,16 @@ export default async function FacturationPage({
       )}
 
       <div className="px-6 py-4 border-t border-stone-200">
-        <p className="text-xs text-stone-400 mb-3">Factures générées</p>
+        <p className="text-xs text-ink-muted mb-3">Factures générées</p>
         <div className="flex flex-col divide-y divide-stone-100">
           {invoices.map((inv) => (
             <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 py-3 text-sm">
               <div className="min-w-0">
                 <p>
-                  <span className="text-stone-400">{inv.invoiceNumber}</span> · {entityName.get(inv.fromEntityId) ?? "?"} →{" "}
+                  <span className="text-ink-muted">{inv.invoiceNumber}</span> · {entityName.get(inv.fromEntityId) ?? "?"} →{" "}
                   {entityName.get(inv.toEntityId) ?? "?"}
                 </p>
-                <p className="text-xs text-stone-400">{inv.periodStart} – {inv.periodEnd}</p>
+                <p className="text-xs text-ink-muted">{inv.periodStart} – {inv.periodEnd}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="font-medium">{formatCHF(Number(inv.totalAmount))}</span>
@@ -153,7 +153,7 @@ export default async function FacturationPage({
               </div>
             </div>
           ))}
-          {invoices.length === 0 && <p className="text-sm text-stone-400">Aucune facture générée pour l&apos;instant.</p>}
+          {invoices.length === 0 && <p className="text-sm text-ink-muted">Aucune facture générée pour l&apos;instant.</p>}
         </div>
       </div>
     </ProPanel>
