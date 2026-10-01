@@ -84,7 +84,15 @@ export default async function EtablissementPage({
           initialTab={isTabKey(tab) ? tab : "identite"}
           accentColor={accentColor}
           sections={{
-            identite: <IdentityForm slug={slug} logoUrl={establishment.logoUrl} bannerUrl={establishment.bannerUrl} accentColor={accentColor} />,
+            identite: (
+              <IdentityForm
+                slug={slug}
+                logoUrl={establishment.logoUrl}
+                bannerUrl={establishment.bannerUrl}
+                deliveryFeeDefault={establishment.deliveryFeeDefault}
+                accentColor={accentColor}
+              />
+            ),
             entites: <LegalEntitiesSection slug={slug} entities={visibleEntities} accentColor={accentColor} />,
             equipe: (
               <TeamSection

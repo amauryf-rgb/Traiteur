@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Button, buttonClassName } from "@/components/ui/Button";
 import { saveProduct, type ProductFormState } from "./actions";
+import { ComponentsEditor } from "./ComponentsEditor";
 import type { ManagedProduct } from "@/lib/db/queries";
 
 const initialState: ProductFormState = {};
@@ -141,6 +142,10 @@ export function ProductForm({
           rows={3}
           className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400 resize-none"
         />
+      </div>
+
+      <div className="border-t border-stone-200 pt-4">
+        <ComponentsEditor initialComponents={product?.components ?? []} accentColor={accentColor} />
       </div>
 
       {allergenOptions.length > 0 && (

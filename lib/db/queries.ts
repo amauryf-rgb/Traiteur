@@ -20,6 +20,8 @@ import {
   platformAdmins,
   productAllergens,
   productCapacityRules,
+  productComponents,
+  productComponentOptions,
   productionLots,
   products,
   purchaseInvoices,
@@ -221,6 +223,47 @@ export async function getPaymentAccountForEntity(tx: Tx, legalEntityId: string) 
   return account ?? null;
 }
 
+export type ProductComponentOption = { id: string; label: string; isDefault: boolean; sortOrder: number };
+export type ProductComponentWithOptions = { id: string; label: string; sortOrder: number; options: ProductComponentOption[] };
+
+// Composants/alternatives (ex. "Entrée au choix parmi 3") configurés par le
+// pro pour une formule — purement optionnel, voir lib/db/schema.ts. Partagé
+// entre getCatalogueProducts (sélection côté client) et getManagedProducts
+// (édition côté pro) : les deux ont besoin de la même forme de données,
+// seule l'UI qui l'affiche diffère.
+async function getComponentsForProducts(tx: Tx, productIds: string[]): Promise<Map<string, ProductComponentWithOptions[]>> {
+  const byProduct = new Map<string, ProductComponentWithOptions[]>();
+  if (productIds.length === 0) return byProduct;
+
+  const componentRows = await tx
+    .select()
+    .from(productComponents)
+    .where(inArray(productComponents.productId, productIds))
+    .orderBy(asc(productComponents.sortOrder));
+  if (componentRows.length === 0) return byProduct;
+
+  const componentIds = componentRows.map((c) => c.id);
+  const optionRows = await tx
+    .select()
+    .from(productComponentOptions)
+    .where(inArray(productComponentOptions.componentId, componentIds))
+    .orderBy(asc(productComponentOptions.sortOrder));
+
+  const optionsByComponent = new Map<string, ProductComponentOption[]>();
+  for (const opt of optionRows) {
+    const list = optionsByComponent.get(opt.componentId) ?? [];
+    list.push({ id: opt.id, label: opt.label, isDefault: opt.isDefault, sortOrder: opt.sortOrder });
+    optionsByComponent.set(opt.componentId, list);
+  }
+
+  for (const comp of componentRows) {
+    const list = byProduct.get(comp.productId) ?? [];
+    list.push({ id: comp.id, label: comp.label, sortOrder: comp.sortOrder, options: optionsByComponent.get(comp.id) ?? [] });
+    byProduct.set(comp.productId, list);
+  }
+  return byProduct;
+}
+
 export type CatalogueProduct = {
   id: string;
   name: string;
@@ -233,6 +276,7 @@ export type CatalogueProduct = {
   categorySortOrder: number | null;
   sectionTitle: string | null;
   allergens: string[];
+  components: ProductComponentWithOptions[];
 };
 
 export async function getCatalogueProducts(
@@ -280,7 +324,16 @@ export async function getCatalogueProducts(
     allergensByProduct.set(row.productId, list);
   }
 
-  return rows.map((row) => ({ ...row, allergens: allergensByProduct.get(row.id) ?? [] }));
+  const componentsByProduct = await getComponentsForProducts(
+    tx,
+    rows.map((r) => r.id)
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    allergens: allergensByProduct.get(row.id) ?? [],
+    components: componentsByProduct.get(row.id) ?? [],
+  }));
 }
 
 export async function getOrderWithItems(tx: Tx, orderId: string) {
@@ -303,6 +356,17 @@ export async function getClientByEmail(tx: Tx, establishmentId: string, email: s
     .select()
     .from(clients)
     .where(and(eq(clients.establishmentId, establishmentId), eq(clients.email, email)));
+  return client ?? null;
+}
+
+// Profil complet (coordonnées + adresses) pour pré-remplir l'étape 3 du
+// tunnel de commande traiteur quand le client est connecté — getClientByEmail
+// sert au login, celle-ci au pré-remplissage une fois la session établie.
+export async function getClientById(tx: Tx, establishmentId: string, clientId: string) {
+  const [client] = await tx
+    .select()
+    .from(clients)
+    .where(and(eq(clients.establishmentId, establishmentId), eq(clients.id, clientId)));
   return client ?? null;
 }
 
@@ -600,6 +664,7 @@ export type ManagedProduct = {
   perDayMax: number | null;
   perSlotMax: number | null;
   alertThresholdPct: number;
+  components: ProductComponentWithOptions[];
 };
 
 // Tous les produits de l'établissement (actifs et inactifs) — vue de gestion,
@@ -654,12 +719,15 @@ export async function getManagedProducts(tx: Tx, establishmentId: string): Promi
     rulesByProduct.set(rule.productId, entry);
   }
 
+  const componentsByProduct = await getComponentsForProducts(tx, ids);
+
   return rows.map((row) => ({
     ...row,
     allergenIds: allergensByProduct.get(row.id) ?? [],
     perDayMax: rulesByProduct.get(row.id)?.perDayMax ?? null,
     perSlotMax: rulesByProduct.get(row.id)?.perSlotMax ?? null,
     alertThresholdPct: rulesByProduct.get(row.id)?.alertThresholdPct ?? 80,
+    components: componentsByProduct.get(row.id) ?? [],
   }));
 }
 
@@ -785,6 +853,7 @@ export type OrderArchiveRow = {
   paymentStatus: string;
   sellingEntityId: string;
   invoiceNumber: string | null;
+  quoteStatus: string | null;
 };
 
 export async function getOrdersArchive(tx: Tx, filters: OrderArchiveFilters): Promise<OrderArchiveRow[]> {
@@ -800,6 +869,7 @@ export async function getOrdersArchive(tx: Tx, filters: OrderArchiveFilters): Pr
       paymentStatus: orders.paymentStatus,
       sellingEntityId: orders.sellingEntityId,
       invoiceNumber: clientInvoices.invoiceNumber,
+      quoteStatus: orders.quoteStatus,
     })
     .from(orders)
     .leftJoin(clientInvoices, eq(clientInvoices.orderId, orders.id))

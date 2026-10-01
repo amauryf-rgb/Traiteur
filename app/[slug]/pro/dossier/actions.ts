@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
-import { legalEntities, purchaseInvoices } from "@/lib/db/schema";
+import { legalEntities, orders, purchaseInvoices } from "@/lib/db/schema";
 import { getStaffLegalEntityId } from "@/lib/db/queries";
 import { requireStaffTenantContext, runAsTenant, type TenantContext } from "@/lib/tenant";
 import { getPurchaseInvoiceScanStore, PURCHASE_INVOICE_SCAN_ROUTE_PREFIX } from "@/lib/blobs";
@@ -98,4 +98,27 @@ export async function addPurchaseInvoice(slug: string, _prevState: AddPurchaseIn
 
   revalidatePath(`/${slug}/pro/dossier`);
   return {};
+}
+
+const QUOTE_STATUSES = ["devis_envoye", "ajustements_en_cours", "confirmee"] as const;
+
+// Suivi manuel du tunnel de commande traiteur — pas de workflow automatisé,
+// Michele fait elle-même les échanges par email et se contente de refléter
+// où en est chaque devis. Volontairement permissif sur les transitions (pas
+// de machine à états) : elle peut revenir en arrière si un client rouvre la
+// discussion après confirmation.
+export async function updateQuoteStatus(slug: string, orderId: string, quoteStatus: string) {
+  if (!QUOTE_STATUSES.includes(quoteStatus as (typeof QUOTE_STATUSES)[number])) {
+    throw new Error("Statut de devis invalide.");
+  }
+  const { establishmentId, context } = await requireOwnerScope(slug);
+  const updated = await runAsTenant(context, (tx) =>
+    tx
+      .update(orders)
+      .set({ quoteStatus, updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.establishmentId, establishmentId)))
+      .returning({ id: orders.id })
+  );
+  if (updated.length === 0) throw new Error("Commande introuvable.");
+  revalidatePath(`/${slug}/pro/dossier`);
 }

@@ -80,6 +80,13 @@ export const establishments = pgTable("establishments", {
   // name/tagline/accentColor ci-dessus.
   closedWeekdaysTraiteur: integer("closed_weekdays_traiteur").array().notNull().default([]),
   closedWeekdaysBoutique: integer("closed_weekdays_boutique").array().notNull().default([]),
+  // Forfait de livraison traiteur (tunnel de commande) — un seul montant par
+  // établissement pour l'instant (pas de calcul par zone/distance, inutile
+  // avec un seul traiteur pilote). NULL tant que le pro ne l'a pas configuré
+  // depuis son dashboard ; copié dans order_event_details.deliveryFee à la
+  // commande (snapshot, jamais recalculé rétroactivement si le forfait
+  // change ensuite — même principe que unitPriceSnapshot sur order_items).
+  deliveryFeeDefault: numeric("delivery_fee_default", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("onboarding_status_check", sql`${t.onboardingStatus} IN ('draft','payment_pending','active','suspended')`),
@@ -207,6 +214,20 @@ export const clients = pgTable("clients", {
   email: text("email"),
   phone: text("phone"),
   passwordHash: text("password_hash"),
+  // Mémorisées pour pré-remplir (et laisser modifiable) l'étape 3 du tunnel
+  // de commande traiteur d'une commande à l'autre — jamais lues en écriture
+  // seule : le client peut toujours corriger à la volée sur une commande
+  // donnée sans que ça n'écrase ces valeurs par défaut (voir order_contacts,
+  // qui conserve sa propre copie par commande).
+  contactAddressLine1: text("contact_address_line1"),
+  contactAddressLine2: text("contact_address_line2"),
+  contactAddressPostalCode: text("contact_address_postal_code"),
+  contactAddressCity: text("contact_address_city"),
+  billingSameAsContact: boolean("billing_same_as_contact").notNull().default(true),
+  billingAddressLine1: text("billing_address_line1"),
+  billingAddressLine2: text("billing_address_line2"),
+  billingAddressPostalCode: text("billing_address_postal_code"),
+  billingAddressCity: text("billing_address_city"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("clients_establishment_email_unique").on(t.establishmentId, t.email),
@@ -274,6 +295,41 @@ export const productAllergens = pgTable("product_allergens", {
   ),
 ]).enableRLS();
 
+// Emplacement substituable sur une formule traiteur (ex. "Entrée", "Plat
+// chaud") — purement optionnel : une formule sans component configuré garde
+// son affichage actuel (description en texte libre uniquement). Ne couvre
+// jamais le choix avec/sans dessert, qui reste géré séparément via
+// products.priceAmountNoDessert / order_items.withDessert — un component
+// n'est créé que pour une alternative que le pro a explicitement prévue.
+export const productComponents = pgTable("product_components", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "product_components_tenant_isolation",
+    sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
+
+// Les alternatives proposées pour un component donné (ex. "Antipasti à
+// l'italienne" / "Cannelloni alla Fiorentina" / "Duo de nidi" pour un
+// component "Entrée"). isDefault marque l'option déjà incluse dans la
+// description actuelle de la formule (pré-sélectionnée côté client).
+export const productComponentOptions = pgTable("product_component_options", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  componentId: uuid("component_id").notNull().references(() => productComponents.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  isDefault: boolean("is_default").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "product_component_options_tenant_isolation",
+    sql`SELECT 1 FROM ${productComponents} JOIN ${products} ON ${products.id} = ${productComponents.productId} WHERE ${productComponents.id} = ${t.componentId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
+
 export const productCapacityRules = pgTable("product_capacity_rules", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
@@ -334,6 +390,14 @@ export const orders = pgTable("orders", {
   pickupTime: time("pickup_time").notNull(),
   status: text("status").notNull().default("confirmed"),
   paymentStatus: text("payment_status").notNull().default("unpaid"),
+  // Suivi léger du tunnel de commande traiteur (devis par email, pas de
+  // workflow automatisé) — NULL pour la boutique et pour toute commande
+  // traiteur créée hors de ce tunnel. Tant que ce n'est pas 'confirmee', la
+  // commande n'a volontairement PAS de ligne client_invoices définitive : le
+  // PDF "devis" est régénéré à la volée depuis les données en mémoire (voir
+  // getOrCreateClientInvoice), pour ne pas consommer de numéro de facture
+  // réel avant que Michele ne confirme manuellement.
+  quoteStatus: text("quote_status"),
   currency: text("currency").notNull().default("CHF"),
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
   depositAmount: numeric("deposit_amount", { precision: 10, scale: 2 }),
@@ -345,7 +409,57 @@ export const orders = pgTable("orders", {
   check("order_type_check", sql`${t.orderType} IN ('boutique','traiteur')`),
   check("order_status_check", sql`${t.status} IN ('pending_payment','confirmed','in_progress','completed','cancelled')`),
   check("order_payment_status_check", sql`${t.paymentStatus} IN ('unpaid','deposit_paid','paid','refunded_partial','refunded_full')`),
+  check("order_quote_status_check", sql`${t.quoteStatus} IS NULL OR ${t.quoteStatus} IN ('devis_envoye','ajustements_en_cours','confirmee')`),
   tenantIsolationPolicy("orders_tenant_isolation", t.establishmentId),
+]).enableRLS();
+
+// Détails événement/livraison du tunnel de commande traiteur — table 1:1
+// séparée plutôt que des colonnes sur orders : uniquement renseignée pour
+// les commandes traiteur passées via ce tunnel (jamais pour la boutique),
+// évite d'alourdir orders de colonnes NULL pour la quasi-totalité des lignes.
+export const orderEventDetails = pgTable("order_event_details", {
+  orderId: uuid("order_id").primaryKey().references(() => orders.id, { onDelete: "cascade" }),
+  eventDate: date("event_date").notNull(),
+  eventTime: time("event_time").notNull(),
+  eventLocation: text("event_location").notNull(),
+  deliveryMode: text("delivery_mode").notNull(),
+  deliveryAddress: text("delivery_address"),
+  // Copie du forfait établissement au moment de la commande (snapshot, voir
+  // establishments.deliveryFeeDefault) — NULL si deliveryMode='pickup'.
+  deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }),
+}, (t) => [
+  check("order_event_delivery_mode_check", sql`${t.deliveryMode} IN ('pickup','delivery')`),
+  tenantIsolationPolicyViaExists(
+    "order_event_details_tenant_isolation",
+    sql`SELECT 1 FROM ${orders} WHERE ${orders.id} = ${t.orderId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
+
+// Coordonnées structurées du tunnel traiteur — distinct de
+// orders.clientName/clientContact (texte libre, utilisé par la boutique et
+// les commandes traiteur hors tunnel). Une commande du tunnel renseigne les
+// deux à la fois : ces colonnes-ci pour l'usage structuré (PDF devis,
+// pré-remplissage futur), clientContact avec un résumé texte pour rester
+// affichable partout où ce champ est déjà lu.
+export const orderContacts = pgTable("order_contacts", {
+  orderId: uuid("order_id").primaryKey().references(() => orders.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  email2: text("email2"),
+  phone: text("phone").notNull(),
+  contactAddressLine1: text("contact_address_line1").notNull(),
+  contactAddressLine2: text("contact_address_line2"),
+  contactAddressPostalCode: text("contact_address_postal_code").notNull(),
+  contactAddressCity: text("contact_address_city").notNull(),
+  billingSameAsContact: boolean("billing_same_as_contact").notNull().default(true),
+  billingAddressLine1: text("billing_address_line1"),
+  billingAddressLine2: text("billing_address_line2"),
+  billingAddressPostalCode: text("billing_address_postal_code"),
+  billingAddressCity: text("billing_address_city"),
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "order_contacts_tenant_isolation",
+    sql`SELECT 1 FROM ${orders} WHERE ${orders.id} = ${t.orderId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
 ]).enableRLS();
 
 export const orderItems = pgTable("order_items", {
@@ -360,11 +474,35 @@ export const orderItems = pgTable("order_items", {
   // le prix réellement facturé reste unitPriceSnapshot, déjà résolu côté
   // serveur au moment de la commande (jamais recalculé depuis ce champ).
   withDessert: boolean("with_dessert"),
+  // Demande libre du client pour cette formule (allergie, ajustement non
+  // prévu…) — validée/ajustée manuellement par Michele avant envoi du devis,
+  // jamais interprétée automatiquement. Distinct des substitutions guidées
+  // (order_item_selections), qui elles sont sans ambiguïté.
+  customerNote: text("customer_note"),
 }, (t) => [
   check("order_item_quantity_check", sql`${t.quantity} > 0`),
   tenantIsolationPolicyViaExists(
     "order_items_tenant_isolation",
     sql`SELECT 1 FROM ${orders} WHERE ${orders.id} = ${t.orderId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
+
+// Choix fait par le client parmi les alternatives d'un component (voir
+// product_components/product_component_options) pour une ligne de commande
+// donnée — une ligne par component renseigné sur la formule commandée. Pas
+// de contrainte FK garantissant que selectedOptionId appartient bien à
+// componentId (Postgres ne l'exprime pas simplement) : invariant vérifié
+// côté application à la création de la commande, même logique que
+// resolveUnitPrice qui ne fait jamais confiance aux seules données client.
+export const orderItemSelections = pgTable("order_item_selections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id, { onDelete: "cascade" }),
+  componentId: uuid("component_id").notNull().references(() => productComponents.id),
+  selectedOptionId: uuid("selected_option_id").notNull().references(() => productComponentOptions.id),
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "order_item_selections_tenant_isolation",
+    sql`SELECT 1 FROM ${orderItems} JOIN ${orders} ON ${orders.id} = ${orderItems.orderId} WHERE ${orderItems.id} = ${t.orderItemId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
   ),
 ]).enableRLS();
 

@@ -1,8 +1,12 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { formatCHF } from "@/lib/format";
-import type { clientInvoices, legalEntities, orderItems, orders } from "@/lib/db/schema";
+import type { legalEntities, orderItems, orders } from "@/lib/db/schema";
 
-type ClientInvoice = typeof clientInvoices.$inferSelect;
+// Seuls invoiceNumber/generatedAt sont lus ici — un Pick plutôt que le type
+// complet de client_invoices permet de rendre un "devis" depuis un objet
+// synthétisé en mémoire (voir getDevisBundle, lib/invoicing.ts), sans jamais
+// créer de ligne client_invoices tant que la commande n'est pas confirmée.
+type InvoiceLike = { invoiceNumber: string; generatedAt: Date };
 type Order = typeof orders.$inferSelect;
 type OrderItem = typeof orderItems.$inferSelect;
 type LegalEntity = typeof legalEntities.$inferSelect;
@@ -72,25 +76,31 @@ export function ClientInvoiceDocument({
   items,
   sellingEntity,
   establishmentName,
+  documentType = "facture",
 }: {
-  invoice: ClientInvoice;
+  invoice: InvoiceLike;
   order: Order;
   items: OrderItem[];
   sellingEntity: LegalEntity;
   establishmentName: string;
+  // "devis" : même structure, mention différente, jamais présenté comme
+  // définitif (voir footer) — tant que la commande n'est pas confirmée par
+  // le pro, aucune ligne client_invoices n'existe pour ce document.
+  documentType?: "facture" | "devis";
 }) {
+  const isDevis = documentType === "devis";
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={[styles.headerBlock, styles.row]}>
           <View>
-            <Text style={styles.title}>Facture</Text>
+            <Text style={styles.title}>{isDevis ? "Devis" : "Facture"}</Text>
             <Text style={styles.muted}>{establishmentName}</Text>
           </View>
           <View>
             <Text>N° {invoice.invoiceNumber}</Text>
             <Text style={styles.muted}>Commande du {formatSwissDate(order.pickupDate)}</Text>
-            <Text style={styles.muted}>Émise le {formatSwissDate(invoice.generatedAt.toISOString().slice(0, 10))}</Text>
+            <Text style={styles.muted}>Émis le {formatSwissDate(invoice.generatedAt.toISOString().slice(0, 10))}</Text>
           </View>
         </View>
 
@@ -146,12 +156,18 @@ export function ClientInvoiceDocument({
         </View>
 
         <View style={styles.footer}>
-          <Text>Statut : {PAYMENT_STATUS_LABEL[order.paymentStatus] ?? order.paymentStatus}</Text>
-          {sellingEntity.ibanNumber && (
-            <Text style={{ marginTop: 4 }}>
-              Paiement par virement à {sellingEntity.name} — IBAN {sellingEntity.ibanNumber}
-              {sellingEntity.bankName ? ` (${sellingEntity.bankName})` : ""}. Référence : {invoice.invoiceNumber}.
-            </Text>
+          {isDevis ? (
+            <Text>Ce document est un devis, sans valeur de facture — montant indicatif avant ajustements éventuels.</Text>
+          ) : (
+            <>
+              <Text>Statut : {PAYMENT_STATUS_LABEL[order.paymentStatus] ?? order.paymentStatus}</Text>
+              {sellingEntity.ibanNumber && (
+                <Text style={{ marginTop: 4 }}>
+                  Paiement par virement à {sellingEntity.name} — IBAN {sellingEntity.ibanNumber}
+                  {sellingEntity.bankName ? ` (${sellingEntity.bankName})` : ""}. Référence : {invoice.invoiceNumber}.
+                </Text>
+              )}
+            </>
           )}
         </View>
       </Page>

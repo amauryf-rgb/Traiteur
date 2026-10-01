@@ -101,8 +101,22 @@ export async function updateEstablishmentIdentity(
   const bannerResult = await resolveImageUrl(formData, "banner", "removeBanner", currentBannerUrl);
   if ("error" in bannerResult) return { error: bannerResult.error };
 
+  // Forfait de livraison traiteur — un seul montant par établissement (voir
+  // lib/db/schema.ts#deliveryFeeDefault) : vide = pas de livraison proposée
+  // tant que Michele ne l'a pas configuré.
+  const deliveryFeeRaw = String(formData.get("deliveryFeeDefault") ?? "").trim();
+  let deliveryFeeDefault: string | null = null;
+  if (deliveryFeeRaw) {
+    const parsed = Number(deliveryFeeRaw.replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) return { error: "Le forfait de livraison doit être un nombre positif." };
+    deliveryFeeDefault = parsed.toFixed(2);
+  }
+
   await runAsTenant(context, (tx) =>
-    tx.update(establishments).set({ logoUrl: logoResult.url, bannerUrl: bannerResult.url }).where(eq(establishments.id, establishmentId))
+    tx
+      .update(establishments)
+      .set({ logoUrl: logoResult.url, bannerUrl: bannerResult.url, deliveryFeeDefault })
+      .where(eq(establishments.id, establishmentId))
   );
 
   revalidatePath(`/${slug}/pro/etablissement`);

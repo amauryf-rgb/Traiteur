@@ -25,6 +25,13 @@ export type ClientInvoiceBundle = {
   sellingEntity: typeof legalEntities.$inferSelect;
 };
 
+export type DevisBundle = {
+  invoice: { invoiceNumber: string; generatedAt: Date };
+  order: typeof orders.$inferSelect;
+  items: (typeof orderItems.$inferSelect)[];
+  sellingEntity: typeof legalEntities.$inferSelect;
+};
+
 // Génère la facture au premier accès (à la création de la commande, ou plus
 // tard depuis le Dossier pour une commande passée avant ce chantier) et la
 // réutilise ensuite — jamais un deuxième numéro pour la même commande
@@ -52,4 +59,27 @@ export async function getOrCreateClientInvoice(tx: Tx, orderId: string): Promise
     .returning();
 
   return { invoice, order, items, sellingEntity };
+}
+
+// Équivalent devis de getOrCreateClientInvoice — ne persiste jamais de ligne
+// client_invoices ni ne consomme de numéro de facture réel, tant que
+// orders.quoteStatus n'est pas 'confirmee' (voir app/[slug]/traiteur/actions.ts
+// et le commentaire sur orders.quoteStatus, lib/db/schema.ts). Le numéro de
+// devis est dérivé de l'id de commande, pas d'une séquence dédiée : ce n'est
+// pas un document comptable, juste une référence lisible pour l'échange par
+// email entre Michele et son client.
+export async function getDevisBundle(tx: Tx, orderId: string): Promise<DevisBundle | null> {
+  const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
+  if (!order) return null;
+
+  const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  const [sellingEntity] = await tx.select().from(legalEntities).where(eq(legalEntities.id, order.sellingEntityId));
+  if (!sellingEntity) return null;
+
+  return {
+    invoice: { invoiceNumber: `DEVIS-${order.id.slice(0, 8).toUpperCase()}`, generatedAt: new Date() },
+    order,
+    items,
+    sellingEntity,
+  };
 }

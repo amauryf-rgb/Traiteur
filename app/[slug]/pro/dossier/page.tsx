@@ -8,6 +8,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { ProShell, ProPanel } from "@/components/pro/ProShell";
 import { requireOwnerScope } from "./actions";
 import { AddPurchaseInvoiceForm } from "./AddPurchaseInvoiceForm";
+import { QuoteStatusSelect } from "./QuoteStatusSelect";
 
 const PAYMENT_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   unpaid: { label: "Non payé", tone: "warning" },
@@ -118,15 +119,16 @@ export default async function DossierPage({
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
+                    {order.quoteStatus && <QuoteStatusSelect slug={slug} orderId={order.id} quoteStatus={order.quoteStatus} />}
                     <Badge tone={badge.tone}>{badge.label}</Badge>
                     <span className="text-sm font-medium whitespace-nowrap">{formatCHF(Number(order.totalAmount))}</span>
                     <Link
-                      href={`/${slug}/pro/dossier/${order.id}/facture`}
+                      href={`/${slug}/pro/dossier/${order.id}/${order.quoteStatus && order.quoteStatus !== "confirmee" ? "devis" : "facture"}`}
                       target="_blank"
                       className="text-xs underline whitespace-nowrap"
                       style={{ color: accentColor }}
                     >
-                      Voir la facture
+                      {order.quoteStatus && order.quoteStatus !== "confirmee" ? "Voir le devis" : "Voir la facture"}
                     </Link>
                   </div>
                 </div>

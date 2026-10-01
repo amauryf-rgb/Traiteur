@@ -3,8 +3,10 @@
 import { useState, type CSSProperties } from "react";
 import { formatCHF } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
+import { DessertCheckbox } from "@/components/catalogue/DessertCheckbox";
+import { QuantityStepper } from "@/components/catalogue/QuantityStepper";
 import { useCanHover } from "@/lib/useCanHover";
-import { INK_MUTED, PAPER, PAPER_LINE } from "@/lib/theme";
+import { INK_MUTED, PAPER_LINE } from "@/lib/theme";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
 // Format "menu de restaurant" (voir catalogue-carte-restaurant-reference.html
@@ -80,27 +82,6 @@ export function MenuRow({
     onUpdateQuantity(Math.max(0, nextQuantity), hasDessertOption ? nextWithDessert : undefined);
   }
 
-  // Saisie directe du chiffre de quantité (en plus des boutons -/+), même
-  // principe que le nombre de personnes global (CatalogueClient) : état local
-  // pour permettre de vider le champ le temps de taper une nouvelle valeur,
-  // resynchronisé avec `quantity` (source de vérité, panier) via le pattern
-  // React "Adjusting state when a prop changes" plutôt qu'un effet.
-  const [qtyInput, setQtyInput] = useState(String(quantity));
-  const [syncedQuantity, setSyncedQuantity] = useState(quantity);
-  if (quantity !== syncedQuantity) {
-    setSyncedQuantity(quantity);
-    setQtyInput(String(quantity));
-  }
-
-  function commitQtyInput() {
-    const parsed = parseInt(qtyInput, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      updateQuantity(parsed);
-    } else {
-      setQtyInput(String(quantity));
-    }
-  }
-
   function toggleWithDessert(checked: boolean) {
     setWithDessert(checked);
     // Répercute immédiatement sur le prix de la ligne déjà présente au
@@ -108,86 +89,14 @@ export function MenuRow({
     if (quantity > 0) updateQuantity(quantity, checked);
   }
 
-  const addButtonClass =
-    "w-7 h-7 rounded-full border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white flex items-center justify-center transition-colors";
-  const removeButtonClass =
-    "w-7 h-7 rounded-full border border-stone-300 text-stone-500 hover:bg-stone-500 hover:text-white flex items-center justify-center transition-colors";
-
-  // Stepper de ligne, gabarit réduit (~22px) et neutre au repos — distinct des
-  // classes ci-dessus (accordéon mobile, tactile, gardées à leur taille
-  // actuelle) pour ne pas rétrécir des cibles tactiles. #d9d5c9/#6b5d55
-  // reprennent PAPER_LINE/INK_MUTED en dur (plutôt qu'un style inline) pour
-  // que hover: puisse les remplacer par l'accent — un style inline aurait
-  // priorité sur la pseudo-classe et empêcherait le survol de fonctionner.
-  const lineStepperButtonClass =
-    "w-[22px] h-[22px] rounded-full border border-[#d9d5c9] text-[#6b5d55] hover:border-[var(--accent)] hover:text-[var(--accent)] flex items-center justify-center text-xs leading-none shrink-0 transition-colors";
-
   const dessertCheckbox = hasDessertOption && (
-    <label className="inline-flex items-center gap-1.5 cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
-      <input
-        type="checkbox"
-        checked={withDessert}
-        onChange={(e) => toggleWithDessert(e.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className="w-4 h-4 rounded-[3px] border flex items-center justify-center shrink-0 transition-colors"
-        style={{ borderColor: accentColor, backgroundColor: withDessert ? accentColor : "transparent" }}
-      >
-        {withDessert && (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={PAPER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 12l6 6L20 6" />
-          </svg>
-        )}
-      </span>
-      <span className="font-serif italic text-[13px]" style={{ color: INK_MUTED }}>
-        Avec dessert
-      </span>
-    </label>
+    <DessertCheckbox checked={withDessert} onChange={toggleWithDessert} accentColor={accentColor} />
   );
-
-  // Champ chiffre éditable au clavier, partagé par le stepper de ligne
-  // desktop (compact) et l'accordéon mobile (gabarit plus grand) — seule la
-  // className change entre les deux appels ci-dessous.
-  function qtyInputField(className: string) {
-    return (
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        value={qtyInput}
-        onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ""))}
-        onBlur={commitQtyInput}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={`Quantité pour ${product.name} (cliquer pour saisir directement)`}
-        className={className}
-        style={{ color: accentColor, borderColor: accentColor }}
-      />
-    );
-  }
 
   // Stepper de ligne — affiché uniquement une fois la formule ajoutée (voir
   // addButton ci-dessous pour l'état "pas encore ajoutée").
   const lineStepper = (
-    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => updateQuantity(quantity - 1)} className={lineStepperButtonClass} aria-label={`Retirer un ${product.name}`}>
-        −
-      </button>
-      {qtyInputField(
-        "font-serif italic text-base w-7 text-center bg-transparent outline-none border-b-0 border-dotted focus:border-b"
-      )}
-      <button onClick={() => updateQuantity(quantity + 1)} className={lineStepperButtonClass} aria-label={`Ajouter un ${product.name}`}>
-        +
-      </button>
-      {unitLabel && (
-        <span className="text-[10.5px] opacity-75" style={{ color: INK_MUTED }}>
-          {unitLabel}
-        </span>
-      )}
-    </div>
+    <QuantityStepper value={quantity} onChange={updateQuantity} unitLabel={unitLabel} accentColor={accentColor} ariaLabel={product.name} />
   );
 
   // Bouton pilule "Ajouter" — remplace intégralement la case dessert et le
@@ -308,15 +217,7 @@ export function MenuRow({
                 Ajouter au panier
               </Button>
             ) : (
-              <div className="flex items-center gap-3">
-                <button onClick={() => updateQuantity(quantity - 1)} className={removeButtonClass}>
-                  −
-                </button>
-                {qtyInputField("font-serif italic text-base w-8 text-center bg-transparent outline-none border-b-0 border-dotted focus:border-b")}
-                <button onClick={() => updateQuantity(quantity + 1)} className={addButtonClass}>
-                  +
-                </button>
-              </div>
+              <QuantityStepper value={quantity} onChange={updateQuantity} accentColor={accentColor} ariaLabel={product.name} size="touch" />
             )}
           </div>
           {quantity > 0 && (

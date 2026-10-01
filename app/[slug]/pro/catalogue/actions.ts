@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { categories, productAllergens, productCapacityRules, products } from "@/lib/db/schema";
+import { categories, productAllergens, productCapacityRules, productComponents, productComponentOptions, products } from "@/lib/db/schema";
 import { requireStaffTenantContext, runAsTenant, type Tx, type TenantContext } from "@/lib/tenant";
 import { getProductPhotoStore, productPhotoKeyFromUrl, PRODUCT_PHOTO_ROUTE_PREFIX } from "@/lib/blobs";
 
@@ -88,6 +88,58 @@ async function syncCapacityRule(tx: Tx, productId: string, scope: "per_day" | "p
     });
 }
 
+// Forme attendue du JSON sérialisé par ProductForm (ComponentsEditor) — un
+// composant sans label ni option ne doit jamais atteindre le serveur (filtré
+// côté client), mais on revalide quand même ici par prudence.
+type ComponentInput = { label: string; options: { label: string; isDefault: boolean }[] };
+
+function parseComponentsInput(formData: FormData): ComponentInput[] {
+  const raw = String(formData.get("componentsJson") ?? "[]");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((c): c is ComponentInput => typeof c === "object" && c !== null && typeof (c as ComponentInput).label === "string")
+    .map((c) => ({
+      label: c.label.trim(),
+      options: Array.isArray(c.options)
+        ? c.options
+            .filter((o) => typeof o === "object" && o !== null && typeof o.label === "string")
+            .map((o) => ({ label: o.label.trim(), isDefault: Boolean(o.isDefault) }))
+            .filter((o) => o.label.length > 0)
+        : [],
+    }))
+    .filter((c) => c.label.length > 0 && c.options.length > 0);
+}
+
+// Remplace intégralement les components/options existants plutôt qu'un diff
+// incrémental — même choix que productAllergens (delete-then-reinsert) :
+// l'éditeur pro ne permet pas de réordonner/fusionner, juste
+// ajouter/retirer/renommer, donc un remplacement complet reste simple et
+// correct. onDelete cascade sur product_component_options nettoie les
+// anciennes options automatiquement.
+async function syncComponents(tx: Tx, productId: string, components: ComponentInput[]) {
+  await tx.delete(productComponents).where(eq(productComponents.productId, productId));
+  for (let i = 0; i < components.length; i++) {
+    const [created] = await tx
+      .insert(productComponents)
+      .values({ productId, label: components[i].label, sortOrder: i })
+      .returning({ id: productComponents.id });
+    await tx.insert(productComponentOptions).values(
+      components[i].options.map((opt, j) => ({
+        componentId: created.id,
+        label: opt.label,
+        isDefault: opt.isDefault,
+        sortOrder: j,
+      }))
+    );
+  }
+}
+
 function parseOptionalInt(formData: FormData, key: string): number | null {
   const raw = String(formData.get(key) ?? "").trim();
   if (!raw) return null;
@@ -129,6 +181,7 @@ export async function saveProduct(
   const perDayMax = parseOptionalInt(formData, "perDayMax");
   const perSlotMax = parseOptionalInt(formData, "perSlotMax");
   const alertThresholdPct = parseOptionalInt(formData, "alertThresholdPct") ?? 80;
+  const components = parseComponentsInput(formData);
 
   const result = await runAsTenant(context, async (tx) => {
     const categoryId = await resolveCategoryId(tx, establishmentId, String(formData.get("categoryName") ?? ""));
@@ -174,6 +227,7 @@ export async function saveProduct(
 
     await syncCapacityRule(tx, id, "per_day", perDayMax, alertThresholdPct);
     await syncCapacityRule(tx, id, "per_slot", perSlotMax, alertThresholdPct);
+    await syncComponents(tx, id, components);
 
     return null;
   });

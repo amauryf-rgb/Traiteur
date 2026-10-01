@@ -75,11 +75,13 @@ export function IdentityForm({
   slug,
   logoUrl,
   bannerUrl,
+  deliveryFeeDefault,
   accentColor,
 }: {
   slug: string;
   logoUrl: string | null;
   bannerUrl: string | null;
+  deliveryFeeDefault: string | null;
   accentColor: string;
 }) {
   const action = updateEstablishmentIdentity.bind(null, slug, logoUrl, bannerUrl);
@@ -103,6 +105,26 @@ export function IdentityForm({
         currentUrl={bannerUrl}
         previewClassName="w-32 h-16"
       />
+
+      <div>
+        <label className="block text-xs text-ink-muted mb-1">Frais de livraison (traiteur)</label>
+        <p className="text-xs text-ink-muted mb-2">
+          Forfait unique ajouté à la commande quand le client choisit la livraison plutôt que le retrait. Laisser vide
+          tant que la livraison n&apos;est pas proposée.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            name="deliveryFeeDefault"
+            type="number"
+            step="0.05"
+            min="0"
+            defaultValue={deliveryFeeDefault ?? ""}
+            placeholder="ex. 25.00"
+            className="w-32 border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
+          />
+          <span className="text-sm text-ink-muted">CHF</span>
+        </div>
+      </div>
 
       {state.error && <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>}
 
