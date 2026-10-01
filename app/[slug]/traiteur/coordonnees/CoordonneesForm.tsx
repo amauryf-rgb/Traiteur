@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INK_MUTED, PAPER_LINE, accentTint } from "@/lib/theme";
-import { useWizardContact, isContactStepComplete, type WizardContactDraft } from "@/lib/traiteurWizard";
+import {
+  useWizardContact,
+  useWizardEvent,
+  useWizardFormulas,
+  isContactStepComplete,
+  isEventStepComplete,
+  type WizardContactDraft,
+} from "@/lib/traiteurWizard";
 
 const fieldLabelClass = "block text-[10.5px] uppercase tracking-wide mb-1";
 const fieldClass = "font-serif text-[16px] outline-none w-full bg-transparent border-b py-1.5";
@@ -74,8 +81,18 @@ export function CoordonneesForm({
   prefill: Partial<WizardContactDraft> | null;
 }) {
   const router = useRouter();
+  const { event } = useWizardEvent(slug);
+  const { formulas } = useWizardFormulas(slug);
   const { contact, setContact } = useWizardContact(slug);
   const [touched, setTouched] = useState(false);
+
+  // Accès direct à cette URL sans être passé par les étapes 1/2 (brouillon
+  // vide ou incomplet) — redirige vers la première étape manquante.
+  const previousStepsIncomplete = !isEventStepComplete(event) || formulas.length === 0;
+  useEffect(() => {
+    if (!isEventStepComplete(event)) router.replace(`/${slug}/traiteur/evenement`);
+    else if (formulas.length === 0) router.replace(`/${slug}/traiteur/formules`);
+  }, [event, formulas, router, slug]);
 
   // Le pré-remplissage n'agit qu'en valeur de repli pour un champ encore vide
   // — jamais écrit dans le brouillon lui-même, pour ne jamais écraser une
@@ -130,6 +147,8 @@ export function CoordonneesForm({
     if (!complete) return;
     router.push(`/${slug}/traiteur/recapitulatif`);
   }
+
+  if (previousStepsIncomplete) return null;
 
   return (
     <div className="pb-4">

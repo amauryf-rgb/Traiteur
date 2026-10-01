@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatCHF } from "@/lib/format";
 import { formatDateLabel } from "@/lib/slots";
 import { INK_MUTED, PAPER_LINE } from "@/lib/theme";
-import { useWizardEvent, useWizardFormulas, useWizardContact, clearWizardDraft } from "@/lib/traiteurWizard";
+import {
+  useWizardEvent,
+  useWizardFormulas,
+  useWizardContact,
+  clearWizardDraft,
+  isEventStepComplete,
+  isContactStepComplete,
+} from "@/lib/traiteurWizard";
 import { submitQuoteRequest } from "../actions";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
@@ -31,12 +39,28 @@ export function RecapWizard({
   accentColor: string;
   deliveryFeeDefault: string | null;
 }) {
+  const router = useRouter();
   const { event } = useWizardEvent(slug);
   const { formulas } = useWizardFormulas(slug);
   const { contact } = useWizardContact(slug);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // Accès direct à cette URL sans être passé par les étapes précédentes
+  // (brouillon localStorage vide ou incomplet) — redirige vers la première
+  // étape manquante plutôt que de planter en essayant d'afficher des données
+  // absentes (ex. formatDateLabel sur une date vide). `done` reste vrai après
+  // une soumission réussie même si clearWizardDraft vide le brouillon juste
+  // après : ne jamais rediriger une fois la confirmation affichée.
+  useEffect(() => {
+    if (done) return;
+    if (!isEventStepComplete(event)) router.replace(`/${slug}/traiteur/evenement`);
+    else if (formulas.length === 0) router.replace(`/${slug}/traiteur/formules`);
+    else if (!isContactStepComplete(contact)) router.replace(`/${slug}/traiteur/coordonnees`);
+  }, [done, event, formulas, contact, router, slug]);
+
+  const stepIncomplete = !done && (!isEventStepComplete(event) || formulas.length === 0 || !isContactStepComplete(contact));
 
   const deliveryFee = event.deliveryMode === "delivery" ? Number(deliveryFeeDefault ?? 0) : 0;
   const formulasTotal = formulas.reduce((sum, line) => {
@@ -77,6 +101,11 @@ export function RecapWizard({
       </div>
     );
   }
+
+  // Le useEffect ci-dessus déclenche déjà la redirection — ce return évite
+  // juste d'essayer de calculer/afficher le récapitulatif entre-temps avec
+  // des données manquantes (le temps que la navigation s'effectue).
+  if (stepIncomplete) return null;
 
   return (
     <div className="pb-4">

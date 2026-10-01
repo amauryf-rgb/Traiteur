@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useWizardEvent, useWizardFormulas } from "@/lib/traiteurWizard";
+import { useWizardEvent, useWizardFormulas, isEventStepComplete } from "@/lib/traiteurWizard";
 import { INK_MUTED, PAPER_LINE } from "@/lib/theme";
 import { FormulaRow } from "./FormulaRow";
 import type { CatalogueProduct } from "@/lib/db/queries";
@@ -14,6 +14,14 @@ export function FormulesForm({ slug, products, accentColor }: { slug: string; pr
   const { formulas, addFormula, updateFormula, removeFormula, totalAllocated } = useWizardFormulas(slug);
   const [activeCategory, setActiveCategory] = useState("Tout");
   const [touched, setTouched] = useState(false);
+
+  // Accès direct à cette URL sans être passé par l'étape 1 (brouillon
+  // événement vide ou incomplet) — redirige plutôt que de laisser avancer
+  // avec un nombre de convives par défaut non voulu.
+  const eventIncomplete = !isEventStepComplete(event);
+  useEffect(() => {
+    if (eventIncomplete) router.replace(`/${slug}/traiteur/evenement`);
+  }, [eventIncomplete, router, slug]);
 
   const categories = useMemo(() => {
     const orderByName = new Map<string, number>();
@@ -40,6 +48,8 @@ export function FormulesForm({ slug, products, accentColor }: { slug: string; pr
     if (formulas.length === 0) return;
     router.push(`/${slug}/traiteur/coordonnees`);
   }
+
+  if (eventIncomplete) return null;
 
   return (
     <div className="pb-4">
