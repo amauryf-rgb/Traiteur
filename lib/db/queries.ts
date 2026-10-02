@@ -224,7 +224,13 @@ export async function getPaymentAccountForEntity(tx: Tx, legalEntityId: string) 
 }
 
 export type ProductComponentOption = { id: string; label: string; isDefault: boolean; sortOrder: number };
-export type ProductComponentWithOptions = { id: string; label: string; sortOrder: number; options: ProductComponentOption[] };
+export type ProductComponentWithOptions = {
+  id: string;
+  label: string;
+  type: "include" | "choice";
+  sortOrder: number;
+  options: ProductComponentOption[];
+};
 
 // Composants/alternatives (ex. "Entrée au choix parmi 3") configurés par le
 // pro pour une formule — purement optionnel, voir lib/db/schema.ts. Partagé
@@ -258,7 +264,13 @@ async function getComponentsForProducts(tx: Tx, productIds: string[]): Promise<M
 
   for (const comp of componentRows) {
     const list = byProduct.get(comp.productId) ?? [];
-    list.push({ id: comp.id, label: comp.label, sortOrder: comp.sortOrder, options: optionsByComponent.get(comp.id) ?? [] });
+    list.push({
+      id: comp.id,
+      label: comp.label,
+      type: comp.type as "include" | "choice",
+      sortOrder: comp.sortOrder,
+      options: optionsByComponent.get(comp.id) ?? [],
+    });
     byProduct.set(comp.productId, list);
   }
   return byProduct;

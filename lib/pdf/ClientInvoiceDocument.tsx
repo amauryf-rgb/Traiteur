@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { formatCHF } from "@/lib/format";
-import type { legalEntities, orderItems, orders } from "@/lib/db/schema";
+import type { legalEntities, orders } from "@/lib/db/schema";
+import type { OrderItemWithDetails } from "@/lib/invoicing";
 
 // Seuls invoiceNumber/generatedAt sont lus ici — un Pick plutôt que le type
 // complet de client_invoices permet de rendre un "devis" depuis un objet
@@ -8,7 +9,7 @@ import type { legalEntities, orderItems, orders } from "@/lib/db/schema";
 // créer de ligne client_invoices tant que la commande n'est pas confirmée.
 type InvoiceLike = { invoiceNumber: string; generatedAt: Date };
 type Order = typeof orders.$inferSelect;
-type OrderItem = typeof orderItems.$inferSelect;
+type OrderItem = OrderItemWithDetails;
 type LegalEntity = typeof legalEntities.$inferSelect;
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
@@ -50,6 +51,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   colDescription: { flex: 1 },
+  itemSubline: { fontSize: 8.5, color: "#78716c", marginTop: 2 },
+  itemNote: { fontSize: 8.5, color: "#78716c", marginTop: 2, fontStyle: "italic" },
   colQty: { width: 40, textAlign: "right" },
   colUnitPrice: { width: 70, textAlign: "right" },
   colAmount: { width: 80, textAlign: "right" },
@@ -139,10 +142,23 @@ export function ClientInvoiceDocument({
           </View>
           {items.map((item) => (
             <View key={item.id} style={styles.tableRow}>
-              <Text style={styles.colDescription}>
-                {item.productNameSnapshot}
-                {item.withDessert !== null ? ` (${item.withDessert ? "avec" : "sans"} dessert)` : ""}
-              </Text>
+              <View style={styles.colDescription}>
+                <Text>
+                  {item.productNameSnapshot}
+                  {item.withDessert !== null ? ` (${item.withDessert ? "avec" : "sans"} dessert)` : ""}
+                </Text>
+                {item.selectionLabels.map((label) => (
+                  <Text key={label} style={styles.itemSubline}>
+                    {label}
+                  </Text>
+                ))}
+                {item.exclusionLabels.map((label) => (
+                  <Text key={label} style={styles.itemSubline}>
+                    Sans : {label}
+                  </Text>
+                ))}
+                {item.customerNote && <Text style={styles.itemNote}>« {item.customerNote} »</Text>}
+              </View>
               <Text style={styles.colQty}>{item.quantity}</Text>
               <Text style={styles.colUnitPrice}>{formatCHF(Number(item.unitPriceSnapshot))}</Text>
               <Text style={styles.colAmount}>{formatCHF(Number(item.unitPriceSnapshot) * item.quantity)}</Text>

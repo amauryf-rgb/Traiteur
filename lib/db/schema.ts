@@ -295,28 +295,38 @@ export const productAllergens = pgTable("product_allergens", {
   ),
 ]).enableRLS();
 
-// Emplacement substituable sur une formule traiteur (ex. "Entrée", "Plat
-// chaud") — purement optionnel : une formule sans component configuré garde
-// son affichage actuel (description en texte libre uniquement). Ne couvre
-// jamais le choix avec/sans dessert, qui reste géré séparément via
-// products.priceAmountNoDessert / order_items.withDessert — un component
-// n'est créé que pour une alternative que le pro a explicitement prévue.
+// Emplacement sur une formule traiteur — deux natures possibles (voir type
+// ci-dessous), purement optionnel dans les deux cas : une formule sans
+// component configuré garde son affichage actuel (description en texte libre
+// uniquement). Ne couvre jamais le choix avec/sans dessert, qui reste géré
+// séparément via products.priceAmountNoDessert / order_items.withDessert —
+// un component n'est créé que pour un élément que le pro a explicitement
+// prévu de rendre ajustable.
+//
+// type='choice' : "Entrée au choix" — plusieurs product_component_options,
+// le client en sélectionne une (comportement d'origine, inchangé).
+// type='include' : "Antipasti à l'italienne" — élément inclus par défaut,
+// que le client peut décocher ; label porté directement par le component,
+// aucune product_component_options associée (rien à choisir).
 export const productComponents = pgTable("product_components", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   label: text("label").notNull(),
+  type: text("type").notNull().default("choice"),
   sortOrder: integer("sort_order").notNull().default(0),
 }, (t) => [
+  check("product_components_type_check", sql`${t.type} IN ('include', 'choice')`),
   tenantIsolationPolicyViaExists(
     "product_components_tenant_isolation",
     sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`
   ),
 ]).enableRLS();
 
-// Les alternatives proposées pour un component donné (ex. "Antipasti à
-// l'italienne" / "Cannelloni alla Fiorentina" / "Duo de nidi" pour un
-// component "Entrée"). isDefault marque l'option déjà incluse dans la
-// description actuelle de la formule (pré-sélectionnée côté client).
+// Les alternatives proposées pour un component de type 'choice' (ex.
+// "Antipasti à l'italienne" / "Cannelloni alla Fiorentina" / "Duo de nidi"
+// pour un component "Entrée"). isDefault marque l'option déjà incluse dans la
+// description actuelle de la formule (pré-sélectionnée côté client). Jamais
+// de ligne ici pour un component de type 'include' — rien à choisir.
 export const productComponentOptions = pgTable("product_component_options", {
   id: uuid("id").primaryKey().defaultRandom(),
   componentId: uuid("component_id").notNull().references(() => productComponents.id, { onDelete: "cascade" }),
@@ -502,6 +512,22 @@ export const orderItemSelections = pgTable("order_item_selections", {
 }, (t) => [
   tenantIsolationPolicyViaExists(
     "order_item_selections_tenant_isolation",
+    sql`SELECT 1 FROM ${orderItems} JOIN ${orders} ON ${orders.id} = ${orderItems.orderId} WHERE ${orderItems.id} = ${t.orderItemId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
+  ),
+]).enableRLS();
+
+// Éléments inclus par défaut (component de type 'include') que le client a
+// décochés sur une ligne de commande donnée — une ligne par élément retiré,
+// absence de ligne = élément conservé. Pas de recalcul de prix associé :
+// c'est un signal pour l'établissement, qui ajuste le devis manuellement
+// (voir chantier "sélection de formule progressive").
+export const orderItemExclusions = pgTable("order_item_exclusions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id, { onDelete: "cascade" }),
+  componentId: uuid("component_id").notNull().references(() => productComponents.id),
+}, (t) => [
+  tenantIsolationPolicyViaExists(
+    "order_item_exclusions_tenant_isolation",
     sql`SELECT 1 FROM ${orderItems} JOIN ${orders} ON ${orders.id} = ${orderItems.orderId} WHERE ${orderItems.id} = ${t.orderItemId} AND ${orders.establishmentId}::text = current_setting('app.current_establishment_id', true)`
   ),
 ]).enableRLS();

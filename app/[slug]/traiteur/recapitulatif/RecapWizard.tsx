@@ -14,6 +14,7 @@ import {
   isEventStepComplete,
   isContactStepComplete,
 } from "@/lib/traiteurWizard";
+import { useHydrated } from "@/lib/localStore";
 import { submitQuoteRequest } from "../actions";
 import type { CatalogueProduct } from "@/lib/db/queries";
 
@@ -52,13 +53,19 @@ export function RecapWizard({
   // étape manquante plutôt que de planter en essayant d'afficher des données
   // absentes (ex. formatDateLabel sur une date vide). `done` reste vrai après
   // une soumission réussie même si clearWizardDraft vide le brouillon juste
-  // après : ne jamais rediriger une fois la confirmation affichée.
+  // après : ne jamais rediriger une fois la confirmation affichée. On attend
+  // aussi l'hydratation : juste après un rechargement complet, les hooks
+  // useWizard* rendent encore leur valeur de repli vide le temps que
+  // useSyncExternalStore se resynchronise sur le vrai localStorage — agir
+  // sur ce rendu transitoire renverrait à tort vers une étape antérieure
+  // même avec un brouillon complet.
+  const hydrated = useHydrated();
   useEffect(() => {
-    if (done) return;
+    if (done || !hydrated) return;
     if (!isEventStepComplete(event)) router.replace(`/${slug}/traiteur/evenement`);
     else if (formulas.length === 0) router.replace(`/${slug}/traiteur/formules`);
     else if (!isContactStepComplete(contact)) router.replace(`/${slug}/traiteur/coordonnees`);
-  }, [done, event, formulas, contact, router, slug]);
+  }, [done, hydrated, event, formulas, contact, router, slug]);
 
   const stepIncomplete = !done && (!isEventStepComplete(event) || formulas.length === 0 || !isContactStepComplete(contact));
 
@@ -145,6 +152,9 @@ export function RecapWizard({
               return option ? `${component.label} : ${option.label}` : null;
             })
             .filter((l): l is string => l !== null);
+          const exclusionLabels = product.components
+            .filter((component) => component.type === "include" && line.excludedComponentIds.includes(component.id))
+            .map((component) => `Sans : ${component.label}`);
           return (
             <RecapRow
               key={line.productId}
@@ -160,6 +170,11 @@ export function RecapWizard({
                     </span>
                   )}
                   {selectionLabels.map((l) => (
+                    <span key={l} className="text-xs" style={{ color: INK_MUTED }}>
+                      {l}
+                    </span>
+                  ))}
+                  {exclusionLabels.map((l) => (
                     <span key={l} className="text-xs" style={{ color: INK_MUTED }}>
                       {l}
                     </span>

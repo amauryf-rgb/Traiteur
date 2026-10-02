@@ -69,6 +69,11 @@ export type WizardFormulaLine = {
   quantity: number;
   withDessert?: boolean;
   selections: Record<string, string>;
+  // Ids des components de type 'include' que le client a décochés (voir
+  // product_components.type) — vide par défaut, tout est inclus tant que
+  // rien n'y figure. Jamais de recalcul de prix associé, voir
+  // order_item_exclusions.
+  excludedComponentIds: string[];
   customerNote: string;
 };
 
@@ -100,6 +105,7 @@ export function useWizardFormulas(slug: string) {
         quantity: Math.max(1, quantity),
         withDessert: product.priceAmountNoDessert != null ? true : undefined,
         selections: defaultSelections(product),
+        excludedComponentIds: [],
         customerNote: "",
       };
       writeJSON(key, [...current, line]);

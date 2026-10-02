@@ -12,6 +12,7 @@ import {
   isEventStepComplete,
   type WizardContactDraft,
 } from "@/lib/traiteurWizard";
+import { useHydrated } from "@/lib/localStore";
 
 const fieldLabelClass = "block text-[10.5px] uppercase tracking-wide mb-1";
 const fieldClass = "font-serif text-[16px] outline-none w-full bg-transparent border-b py-1.5";
@@ -87,12 +88,19 @@ export function CoordonneesForm({
   const [touched, setTouched] = useState(false);
 
   // Accès direct à cette URL sans être passé par les étapes 1/2 (brouillon
-  // vide ou incomplet) — redirige vers la première étape manquante.
+  // vide ou incomplet) — redirige vers la première étape manquante. On
+  // attend l'hydratation avant de juger "incomplet" : juste après un
+  // rechargement complet, les hooks useWizard* rendent encore leur valeur
+  // de repli vide le temps que useSyncExternalStore se resynchronise sur le
+  // vrai localStorage — agir sur ce rendu transitoire renverrait à tort vers
+  // une étape antérieure même avec un brouillon complet.
+  const hydrated = useHydrated();
   const previousStepsIncomplete = !isEventStepComplete(event) || formulas.length === 0;
   useEffect(() => {
+    if (!hydrated) return;
     if (!isEventStepComplete(event)) router.replace(`/${slug}/traiteur/evenement`);
     else if (formulas.length === 0) router.replace(`/${slug}/traiteur/formules`);
-  }, [event, formulas, router, slug]);
+  }, [hydrated, event, formulas, router, slug]);
 
   // Le pré-remplissage n'agit qu'en valeur de repli pour un champ encore vide
   // — jamais écrit dans le brouillon lui-même, pour ne jamais écraser une

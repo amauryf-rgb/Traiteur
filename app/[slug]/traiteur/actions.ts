@@ -1,7 +1,7 @@
 "use server";
 
 import { eq, inArray } from "drizzle-orm";
-import { clients, orderContacts, orderEventDetails, orderItems, orderItemSelections, orders, products } from "@/lib/db/schema";
+import { clients, orderContacts, orderEventDetails, orderItemExclusions, orderItems, orderItemSelections, orders, products } from "@/lib/db/schema";
 import { getSellingEntity } from "@/lib/db/queries";
 import { getClientTenantContext, getPublicTenantContext, runAsTenant } from "@/lib/tenant";
 import type { WizardContactDraft, WizardEventDraft, WizardFormulaLine } from "@/lib/traiteurWizard";
@@ -113,6 +113,15 @@ export async function submitQuoteRequest(input: SubmitQuoteInput): Promise<Submi
               orderItemId: item.id,
               componentId,
               selectedOptionId,
+            }))
+          );
+        }
+
+        if (line.excludedComponentIds.length > 0) {
+          await tx.insert(orderItemExclusions).values(
+            line.excludedComponentIds.map((componentId) => ({
+              orderItemId: item.id,
+              componentId,
             }))
           );
         }

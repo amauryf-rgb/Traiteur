@@ -91,7 +91,7 @@ async function syncCapacityRule(tx: Tx, productId: string, scope: "per_day" | "p
 // Forme attendue du JSON sérialisé par ProductForm (ComponentsEditor) — un
 // composant sans label ni option ne doit jamais atteindre le serveur (filtré
 // côté client), mais on revalide quand même ici par prudence.
-type ComponentInput = { label: string; options: { label: string; isDefault: boolean }[] };
+type ComponentInput = { label: string; type: "include" | "choice"; options: { label: string; isDefault: boolean }[] };
 
 function parseComponentsInput(formData: FormData): ComponentInput[] {
   const raw = String(formData.get("componentsJson") ?? "[]");
@@ -106,6 +106,7 @@ function parseComponentsInput(formData: FormData): ComponentInput[] {
     .filter((c): c is ComponentInput => typeof c === "object" && c !== null && typeof (c as ComponentInput).label === "string")
     .map((c) => ({
       label: c.label.trim(),
+      type: c.type === "include" ? ("include" as const) : ("choice" as const),
       options: Array.isArray(c.options)
         ? c.options
             .filter((o) => typeof o === "object" && o !== null && typeof o.label === "string")
@@ -113,7 +114,7 @@ function parseComponentsInput(formData: FormData): ComponentInput[] {
             .filter((o) => o.label.length > 0)
         : [],
     }))
-    .filter((c) => c.label.length > 0 && c.options.length > 0);
+    .filter((c) => c.label.length > 0 && (c.type === "include" || c.options.length > 0));
 }
 
 // Remplace intégralement les components/options existants plutôt qu'un diff
@@ -127,16 +128,18 @@ async function syncComponents(tx: Tx, productId: string, components: ComponentIn
   for (let i = 0; i < components.length; i++) {
     const [created] = await tx
       .insert(productComponents)
-      .values({ productId, label: components[i].label, sortOrder: i })
+      .values({ productId, label: components[i].label, type: components[i].type, sortOrder: i })
       .returning({ id: productComponents.id });
-    await tx.insert(productComponentOptions).values(
-      components[i].options.map((opt, j) => ({
-        componentId: created.id,
-        label: opt.label,
-        isDefault: opt.isDefault,
-        sortOrder: j,
-      }))
-    );
+    if (components[i].type === "choice" && components[i].options.length > 0) {
+      await tx.insert(productComponentOptions).values(
+        components[i].options.map((opt, j) => ({
+          componentId: created.id,
+          label: opt.label,
+          isDefault: opt.isDefault,
+          sortOrder: j,
+        }))
+      );
+    }
   }
 }
 

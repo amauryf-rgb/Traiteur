@@ -4,11 +4,12 @@ import { useState } from "react";
 import type { ProductComponentWithOptions } from "@/lib/db/queries";
 
 type EditableOption = { label: string; isDefault: boolean };
-type EditableComponent = { label: string; options: EditableOption[] };
+type EditableComponent = { label: string; type: "include" | "choice"; options: EditableOption[] };
 
 function toEditable(components: ProductComponentWithOptions[]): EditableComponent[] {
   return components.map((c) => ({
     label: c.label,
+    type: c.type,
     options: c.options.map((o) => ({ label: o.label, isDefault: o.isDefault })),
   }));
 }
@@ -35,7 +36,7 @@ export function ComponentsEditor({
   const [components, setComponents] = useState<EditableComponent[]>(() => toEditable(initialComponents));
 
   function addComponent() {
-    setComponents((prev) => [...prev, { label: "", options: [{ label: "", isDefault: true }] }]);
+    setComponents((prev) => [...prev, { label: "", type: "choice", options: [{ label: "", isDefault: true }] }]);
   }
 
   function removeComponent(index: number) {
@@ -44,6 +45,12 @@ export function ComponentsEditor({
 
   function updateComponentLabel(index: number, label: string) {
     setComponents((prev) => prev.map((c, i) => (i === index ? { ...c, label } : c)));
+  }
+
+  function updateComponentType(index: number, type: "include" | "choice") {
+    setComponents((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, type, options: type === "include" ? [] : c.options } : c))
+    );
   }
 
   function addOption(componentIndex: number) {
@@ -98,7 +105,7 @@ export function ComponentsEditor({
               <input
                 value={component.label}
                 onChange={(e) => updateComponentLabel(ci, e.target.value)}
-                placeholder="ex. Entrée"
+                placeholder={component.type === "include" ? "ex. Antipasti à l'italienne" : "ex. Entrée"}
                 className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-stone-400"
               />
               <button
@@ -111,6 +118,34 @@ export function ComponentsEditor({
               </button>
             </div>
 
+            <div className="flex gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => updateComponentType(ci, "include")}
+                className="text-xs rounded-full border px-2.5 py-1"
+                style={
+                  component.type === "include"
+                    ? { borderColor: accentColor, color: accentColor, backgroundColor: `${accentColor}12` }
+                    : { borderColor: "#e7e5e4", color: "#78716c" }
+                }
+              >
+                Élément inclus (décochable)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateComponentType(ci, "choice")}
+                className="text-xs rounded-full border px-2.5 py-1"
+                style={
+                  component.type === "choice"
+                    ? { borderColor: accentColor, color: accentColor, backgroundColor: `${accentColor}12` }
+                    : { borderColor: "#e7e5e4", color: "#78716c" }
+                }
+              >
+                Choix parmi plusieurs options
+              </button>
+            </div>
+
+            {component.type === "choice" && (
             <div className="flex flex-col gap-1.5 mt-2.5 pl-1">
               {component.options.map((option, oi) => (
                 <div key={oi} className="flex items-center gap-2">
@@ -141,6 +176,7 @@ export function ComponentsEditor({
                 + Ajouter une alternative
               </button>
             </div>
+            )}
           </div>
         ))}
       </div>
