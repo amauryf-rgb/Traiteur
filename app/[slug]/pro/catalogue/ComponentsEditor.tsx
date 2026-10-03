@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ProductComponentWithOptions } from "@/lib/db/queries";
 
 type EditableOption = { label: string; isDefault: boolean };
-type EditableComponent = { label: string; type: "include" | "choice"; options: EditableOption[] };
+type EditableComponent = { label: string; type: "include" | "choice" | "header"; options: EditableOption[] };
 
 function toEditable(components: ProductComponentWithOptions[]): EditableComponent[] {
   return components.map((c) => ({
@@ -47,7 +47,7 @@ export function ComponentsEditor({
     setComponents((prev) => prev.map((c, i) => (i === index ? { ...c, label } : c)));
   }
 
-  function updateComponentType(index: number, type: "include" | "choice") {
+  function updateComponentType(index: number, type: "include" | "choice" | "header") {
     setComponents((prev) =>
       prev.map((c, i) => (i === index ? { ...c, type, options: type === "include" ? [] : c.options } : c))
     );
@@ -105,7 +105,13 @@ export function ComponentsEditor({
               <input
                 value={component.label}
                 onChange={(e) => updateComponentLabel(ci, e.target.value)}
-                placeholder={component.type === "include" ? "ex. Antipasti à l'italienne" : "ex. Entrée"}
+                placeholder={
+                  component.type === "header"
+                    ? "ex. Antipasti à l'italienne"
+                    : component.type === "include"
+                      ? "ex. Aubergines grillées"
+                      : "ex. Entrée"
+                }
                 className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-stone-400"
               />
               <button
@@ -142,6 +148,18 @@ export function ComponentsEditor({
                 }
               >
                 Choix parmi plusieurs options
+              </button>
+              <button
+                type="button"
+                onClick={() => updateComponentType(ci, "header")}
+                className="text-xs rounded-full border px-2.5 py-1"
+                style={
+                  component.type === "header"
+                    ? { borderColor: accentColor, color: accentColor, backgroundColor: `${accentColor}12` }
+                    : { borderColor: "#e7e5e4", color: "#78716c" }
+                }
+              >
+                Titre de regroupement
               </button>
             </div>
 

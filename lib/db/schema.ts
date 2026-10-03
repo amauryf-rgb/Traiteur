@@ -308,6 +308,11 @@ export const productAllergens = pgTable("product_allergens", {
 // type='include' : "Antipasti à l'italienne" — élément inclus par défaut,
 // que le client peut décocher ; label porté directement par le component,
 // aucune product_component_options associée (rien à choisir).
+// type='header' : titre de regroupement purement visuel au-dessus d'une
+// suite de components 'include' (ex. "Antipasti à l'italienne" au-dessus de
+// ses ingrédients déselectionnables un par un) — jamais sélectionnable,
+// jamais stocké dans order_item_selections/order_item_exclusions, juste
+// positionné dans sortOrder comme n'importe quel autre component.
 export const productComponents = pgTable("product_components", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
@@ -315,7 +320,7 @@ export const productComponents = pgTable("product_components", {
   type: text("type").notNull().default("choice"),
   sortOrder: integer("sort_order").notNull().default(0),
 }, (t) => [
-  check("product_components_type_check", sql`${t.type} IN ('include', 'choice')`),
+  check("product_components_type_check", sql`${t.type} IN ('include', 'choice', 'header')`),
   tenantIsolationPolicyViaExists(
     "product_components_tenant_isolation",
     sql`SELECT 1 FROM ${products} WHERE ${products.id} = ${t.productId} AND ${products.establishmentId}::text = current_setting('app.current_establishment_id', true)`

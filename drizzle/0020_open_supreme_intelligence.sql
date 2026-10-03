@@ -1,0 +1,2 @@
+ALTER TABLE "product_components" DROP CONSTRAINT "product_components_type_check";--> statement-breakpoint
+ALTER TABLE "product_components" ADD CONSTRAINT "product_components_type_check" CHECK ("product_components"."type" IN ('include', 'choice', 'header'));

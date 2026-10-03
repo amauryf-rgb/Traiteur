@@ -227,7 +227,7 @@ export type ProductComponentOption = { id: string; label: string; isDefault: boo
 export type ProductComponentWithOptions = {
   id: string;
   label: string;
-  type: "include" | "choice";
+  type: "include" | "choice" | "header";
   sortOrder: number;
   options: ProductComponentOption[];
 };
@@ -267,7 +267,7 @@ async function getComponentsForProducts(tx: Tx, productIds: string[]): Promise<M
     list.push({
       id: comp.id,
       label: comp.label,
-      type: comp.type as "include" | "choice",
+      type: comp.type as "include" | "choice" | "header",
       sortOrder: comp.sortOrder,
       options: optionsByComponent.get(comp.id) ?? [],
     });

@@ -81,7 +81,15 @@ export function FormulaDetail({
 
       <div>
         {product.components.map((component) =>
-          component.type === "include" ? (
+          component.type === "header" ? (
+            <p
+              key={component.id}
+              className="text-[10.5px] uppercase tracking-wide font-medium mt-4 mb-1 first:mt-0"
+              style={{ color: accentColor }}
+            >
+              {component.label}
+            </p>
+          ) : component.type === "include" ? (
             <ChecklistCheckbox
               key={component.id}
               label={component.label}
