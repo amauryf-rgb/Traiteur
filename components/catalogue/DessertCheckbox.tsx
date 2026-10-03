@@ -8,10 +8,12 @@ export function DessertCheckbox({
   checked,
   onChange,
   accentColor,
+  label = "Avec dessert",
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   accentColor: string;
+  label?: string;
 }) {
   return (
     <label className="inline-flex items-center gap-1.5 cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
@@ -27,7 +29,7 @@ export function DessertCheckbox({
         )}
       </span>
       <span className="font-serif italic text-[13px]" style={{ color: INK_MUTED }}>
-        Avec dessert
+        {label}
       </span>
     </label>
   );

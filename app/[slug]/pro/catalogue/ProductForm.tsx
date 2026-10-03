@@ -121,6 +121,20 @@ export function ProductForm({
       </div>
 
       <div>
+        <label className="block text-xs text-ink-muted mb-1">Nom du dessert (optionnel)</label>
+        <input
+          name="dessertDescription"
+          defaultValue={product?.dessertDescription ?? ""}
+          placeholder="ex. Gâteau tiramisù"
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400"
+        />
+        <p className="text-xs text-ink-muted mt-1">
+          Affiché à la place de &laquo;&nbsp;Avec dessert&nbsp;&raquo; sous le titre &laquo;&nbsp;Dessert (en
+          option)&nbsp;&raquo;. Laisser vide pour garder le libellé générique.
+        </p>
+      </div>
+
+      <div>
         <label className="block text-xs text-ink-muted mb-1">Sous-titre de section (optionnel)</label>
         <input
           name="sectionTitle"

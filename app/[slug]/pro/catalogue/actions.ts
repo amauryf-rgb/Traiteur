@@ -175,6 +175,7 @@ export async function saveProduct(
     priceAmountNoDessert = priceNoDessert.toFixed(2);
   }
 
+  const dessertDescription = String(formData.get("dessertDescription") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
   const sectionTitle = String(formData.get("sectionTitle") ?? "").trim() || null;
   const isActive = formData.get("isActive") === "on";
@@ -204,6 +205,7 @@ export async function saveProduct(
       name,
       priceAmount: price.toFixed(2),
       priceAmountNoDessert,
+      dessertDescription,
       description,
       sectionTitle,
       photoUrl: photoResult.url,

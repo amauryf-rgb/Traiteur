@@ -118,9 +118,19 @@ export function FormulaDetail({
           )
         )}
         {hasDessertOption && (
-          <div className="py-2.5 border-b border-dotted" style={{ borderColor: PAPER_LINE }}>
-            <DessertCheckbox checked={withDessert} onChange={(checked) => setDraft((prev) => ({ ...prev, withDessert: checked }))} accentColor={accentColor} />
-          </div>
+          <>
+            <p className="text-[10.5px] uppercase tracking-wide font-medium mt-4 mb-1" style={{ color: accentColor }}>
+              Dessert (en option)
+            </p>
+            <div className="py-2.5 border-b border-dotted" style={{ borderColor: PAPER_LINE }}>
+              <DessertCheckbox
+                checked={withDessert}
+                onChange={(checked) => setDraft((prev) => ({ ...prev, withDessert: checked }))}
+                accentColor={accentColor}
+                label={product.dessertDescription ?? undefined}
+              />
+            </div>
+          </>
         )}
       </div>
 

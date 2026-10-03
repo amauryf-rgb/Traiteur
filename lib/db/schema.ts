@@ -265,6 +265,12 @@ export const products = pgTable("products", {
   // choix (voir MenuRow, case à cocher "avec dessert" côté client).
   // priceAmount reste le prix "avec dessert" par défaut dans ce cas.
   priceAmountNoDessert: numeric("price_amount_no_dessert", { precision: 10, scale: 2 }),
+  // Nom/description du dessert inclus (ex. "Gâteau tiramisù") — affiché à la
+  // place du libellé générique "Avec dessert" dans le détail de formule
+  // (étape 2 du tunnel traiteur), sous le titre "Dessert (en option)". NULL
+  // = garde le libellé générique. N'a de sens que si priceAmountNoDessert
+  // est renseigné (sinon il n'y a pas de case dessert à afficher).
+  dessertDescription: text("dessert_description"),
   currency: text("currency").notNull().default("CHF"),
   photoUrl: text("photo_url"),
   availableBoutique: boolean("available_boutique").notNull().default(true),

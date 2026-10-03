@@ -282,6 +282,7 @@ export type CatalogueProduct = {
   description: string | null;
   priceAmount: string;
   priceAmountNoDessert: string | null;
+  dessertDescription: string | null;
   currency: string;
   photoUrl: string | null;
   categoryName: string | null;
@@ -305,6 +306,7 @@ export async function getCatalogueProducts(
       description: products.description,
       priceAmount: products.priceAmount,
       priceAmountNoDessert: products.priceAmountNoDessert,
+      dessertDescription: products.dessertDescription,
       currency: products.currency,
       photoUrl: products.photoUrl,
       categoryName: categories.name,
@@ -665,6 +667,7 @@ export type ManagedProduct = {
   description: string | null;
   priceAmount: string;
   priceAmountNoDessert: string | null;
+  dessertDescription: string | null;
   categoryId: string | null;
   categoryName: string | null;
   sectionTitle: string | null;
@@ -690,6 +693,7 @@ export async function getManagedProducts(tx: Tx, establishmentId: string): Promi
       description: products.description,
       priceAmount: products.priceAmount,
       priceAmountNoDessert: products.priceAmountNoDessert,
+      dessertDescription: products.dessertDescription,
       categoryId: products.categoryId,
       categoryName: categories.name,
       sectionTitle: products.sectionTitle,
